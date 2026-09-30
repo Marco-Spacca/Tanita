@@ -1,0 +1,1359 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phoenix Fitness — Gestione Atleti</title>
+<meta name="description" content="Phoenix Fitness - Sistema di gestione e monitoraggio misurazioni atleti. Dal 2016 al vostro servizio.">
+<meta name="theme-color" content="#1e1e24">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%23ff8c00' d='M12 1.5c1.2 4.1-4.4 6.3-4.4 11a4.9 4.9 0 0 0 9.8.4c.3-3.4-2.3-5.2-2.9-8.3-.9 1.1-1.5 2.4-1.6 3.8-.5-2.3-.9-4.5-.9-6.9z'/><path fill='%23ffd700' d='M12 10.1c.6 1.9-1.9 2.9-1.9 5a1.9 1.9 0 0 0 3.8.2c.1-1.5-1-2.3-1.3-3.7-.3.5-.6 1-.7 1.6-.2-1-.1-2.1.1-3.1z'/></svg>">
+<style>
+/* ============ DESIGN SYSTEM ============ */
+:root{
+  --bg0:#1e1e24; --bg1:#23232b; --bg2:#2b2b36;
+  --line:#34343f; --line2:#3a3a46;
+  --txt:#f2f0ea; --muted:#9b9aa6; --faint:#7c7b88;
+  --yellow:#ffd700; --orange:#ff8c00; --red:#ff4500;
+  --f-display:'Bahnschrift','Archivo Narrow','Arial Narrow','Franklin Gothic Medium','Segoe UI',sans-serif;
+  --f-body:'Segoe UI','Trebuchet MS',Geneva,Verdana,sans-serif;
+  --f-mono:'Cascadia Mono','Consolas','SF Mono','Menlo',monospace;
+  --r:14px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg0);color:var(--txt);font-family:var(--f-body);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button{font-family:inherit}
+input,select{font-family:inherit;color:var(--txt)}
+::selection{background:rgba(255,215,0,.28)}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:var(--bg0)}
+::-webkit-scrollbar-thumb{background:#3c3c48;border-radius:6px;border:2px solid var(--bg0)}
+:focus-visible{outline:2px solid rgba(255,215,0,.55);outline-offset:2px}
+
+/* ============ HEADER FISSO ============ */
+#topbar{position:fixed;top:0;left:0;right:0;z-index:60;background:rgba(30,30,36,.9);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+#topbar::after{content:"";display:block;height:2px;background:linear-gradient(90deg,var(--yellow),var(--orange) 45%,var(--red))}
+.bar-inner{max-width:1240px;margin:0 auto;display:flex;align-items:center;gap:18px;padding:10px 24px}
+.brand{display:flex;align-items:center;gap:11px;cursor:pointer;user-select:none}
+.brand .flame{width:30px;height:30px;flex:none}
+.flame-in{transform-origin:50% 100%;animation:flick 2.4s ease-in-out infinite}
+@keyframes flick{0%,100%{transform:scaleY(1)}38%{transform:scaleY(.94) skewX(2deg)}62%{transform:scaleY(1.05) skewX(-2deg)}80%{transform:scaleY(.97)}}
+.brand h1{font-family:var(--f-display);font-weight:800;font-size:1.04rem;letter-spacing:.15em;line-height:1.1}
+.brand h1 b{color:var(--yellow);font-weight:800}
+.brand p{font-size:.63rem;letter-spacing:.3em;text-transform:uppercase;color:var(--muted);margin-top:1px}
+#crumbs{margin-left:auto;display:flex;align-items:center;gap:7px;font-size:.82rem;color:var(--faint);white-space:nowrap;overflow:hidden}
+#crumbs .ck-home,#crumbs .ck-user{cursor:pointer;color:var(--muted);border:none;background:none;font-size:.82rem}
+#crumbs .ck-user{max-width:220px;overflow:hidden;text-overflow:ellipsis}
+#crumbs .ck-user:hover,#crumbs .ck-home:hover{color:var(--yellow)}
+#crumbs .cur{color:var(--txt)}
+#crumbs .sep{color:#4a4a57}
+
+/* ============ LAYOUT ============ */
+main{max-width:1240px;margin:0 auto;padding:32px 24px 70px;padding-top:104px}
+.screen{display:none}
+.screen.active{display:block;animation:scrIn .35s ease}
+@keyframes scrIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.panel{background:var(--bg1);border:1px solid var(--line);border-radius:var(--r);padding:20px 22px;margin-bottom:22px}
+.panel-title{display:flex;align-items:center;gap:10px;font-family:var(--f-display);font-weight:700;font-size:.82rem;letter-spacing:.16em;text-transform:uppercase;color:var(--txt);margin-bottom:16px}
+.panel-title::before{content:"";width:4px;height:16px;background:var(--yellow);border-radius:2px;flex:none}
+.panel-title .badge{margin-left:auto;font-family:var(--f-mono);font-size:.72rem;letter-spacing:0;color:var(--yellow);background:rgba(255,215,0,.09);border:1px solid rgba(255,215,0,.3);padding:2px 9px;border-radius:20px}
+
+/* ============ BOTTONI ============ */
+.btn{display:inline-flex;align-items:center;gap:8px;border-radius:10px;border:1px solid transparent;cursor:pointer;font-weight:600;font-size:.88rem;padding:10px 18px;transition:transform .12s ease,background .15s,border-color .15s,color .15s;text-decoration:none}
+.btn:active{transform:translateY(1px)}
+.btn svg{flex:none}
+.btn-primary{background:var(--yellow);color:#18181d}
+.btn-primary:hover{background:#ffe14d}
+.btn-ghost{background:transparent;color:var(--txt);border-color:var(--line2)}
+.btn-ghost:hover{border-color:var(--yellow);color:var(--yellow)}
+.btn-danger{background:var(--red);color:#fff}
+.btn-danger:hover{background:#ff5c22}
+.btn-icon{background:transparent;border:1px solid var(--line2);color:var(--muted);width:38px;height:38px;border-radius:10px;display:inline-grid;place-items:center;cursor:pointer;transition:.15s}
+.btn-icon:hover{border-color:var(--red);color:var(--red)}
+
+/* ============ HOME (stile ricerca) ============ */
+#screen-home.active{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 150px);text-align:center}
+.home-logo .flame{width:64px;height:64px;margin-bottom:14px}
+.home-title{font-family:var(--f-display);font-weight:800;font-size:clamp(2.3rem,6vw,3.7rem);letter-spacing:.1em;line-height:1}
+.home-title b{color:var(--yellow);font-weight:800}
+.home-sub{margin-top:12px;font-size:.72rem;letter-spacing:.42em;text-transform:uppercase;color:var(--muted)}
+.search-box{position:relative;width:min(620px,92vw);margin-top:38px}
+.search-shell{display:flex;align-items:center;gap:12px;background:var(--bg1);border:1.5px solid var(--line2);border-radius:999px;padding:15px 22px;transition:border-color .18s,box-shadow .18s}
+.search-box.open .search-shell,.search-shell:focus-within{border-color:var(--yellow);box-shadow:0 0 0 4px rgba(255,215,0,.09)}
+.search-shell svg{color:var(--muted);flex:none}
+.search-shell input{flex:1;background:none;border:none;outline:none;font-size:1.02rem;color:var(--txt)}
+.search-shell input::placeholder{color:var(--faint)}
+#searchClear{border:none;background:none;color:var(--muted);cursor:pointer;display:grid;place-items:center;padding:2px}
+#searchClear:hover{color:var(--txt)}
+#searchResults{position:absolute;top:calc(100% + 8px);left:0;right:0;background:var(--bg1);border:1px solid var(--line2);border-radius:16px;overflow:hidden;box-shadow:0 18px 44px rgba(0,0,0,.5);text-align:left;display:none;z-index:20}
+#searchResults.show{display:block;animation:scrIn .18s ease}
+.sr-item{display:flex;align-items:center;gap:12px;width:100%;padding:11px 18px;background:none;border:none;border-bottom:1px solid #2a2a34;cursor:pointer;color:var(--txt);font-size:.94rem;text-align:left}
+.sr-item:last-child{border-bottom:none}
+.sr-item:hover,.sr-item.sel{background:#2a2a35}
+.sr-item.sel{box-shadow:inset 3px 0 0 var(--yellow)}
+.sr-av{width:34px;height:34px;border-radius:50%;background:var(--bg2);border:1.5px solid var(--orange);color:var(--yellow);display:grid;place-items:center;font-family:var(--f-display);font-weight:700;font-size:.76rem;letter-spacing:.05em;flex:none}
+.sr-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sr-name mark{background:none;color:var(--yellow);font-weight:700}
+.sr-meta{color:var(--faint);font-size:.76rem;flex:none}
+.sr-empty{padding:14px 18px;color:var(--muted);font-size:.9rem;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.sr-empty button{background:none;border:1px solid var(--yellow);color:var(--yellow);border-radius:8px;padding:5px 11px;cursor:pointer;font-size:.8rem;font-weight:600}
+.sr-empty button:hover{background:rgba(255,215,0,.1)}
+.home-actions{margin-top:26px}
+#recentRow{margin-top:34px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center}
+#recentRow .rc-label{font-size:.68rem;letter-spacing:.28em;text-transform:uppercase;color:var(--faint)}
+.rc{display:inline-flex;align-items:center;gap:7px;background:none;border:1px solid var(--line2);color:var(--muted);border-radius:999px;padding:6px 14px;font-size:.82rem;cursor:pointer;transition:.15s}
+.rc:hover{border-color:var(--yellow);color:var(--txt)}
+.rc i{font-style:normal;color:var(--orange);font-family:var(--f-display);font-weight:700;font-size:.7rem}
+.home-stats{margin-top:34px;font-size:.76rem;letter-spacing:.18em;text-transform:uppercase;color:var(--faint)}
+
+/* ============ CAMPI FORM ============ */
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field label{font-size:.7rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.field input{background:var(--bg0);border:1.5px solid var(--line2);border-radius:9px;padding:9px 12px;font-size:.92rem;outline:none;transition:border-color .15s;width:100%}
+.field input:focus{border-color:var(--yellow)}
+.field input[readonly]{color:var(--orange);background:#26262f;font-family:var(--f-mono)}
+.field input::-webkit-calendar-picker-indicator{filter:invert(.75) sepia(1) saturate(4) hue-rotate(5deg)}
+.ferr{font-size:.74rem;color:var(--red)}
+.f-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:13px 14px}
+.f-row-dates{display:grid;grid-template-columns:200px 130px;gap:14px;margin-bottom:14px;padding-bottom:16px;border-bottom:1px dashed var(--line2)}
+.f-notes{margin-top:14px}
+.f-hint{margin-top:12px;font-size:.76rem;color:var(--faint)}
+.f-submit{margin-top:16px;display:flex;align-items:center;gap:14px}
+.dice-btn{background:transparent;border:1px solid var(--line2);color:var(--muted);width:38px;height:38px;border-radius:10px;display:inline-grid;place-items:center;cursor:pointer;transition:.15s;flex:none}
+.dice-btn:hover{border-color:var(--yellow);color:var(--yellow);transform:rotate(15deg)}
+.dice-btn:active{transform:scale(.9)}
+
+/* ============ SCHEDA UTENTE ============ */
+.uhead{display:flex;align-items:center;gap:18px;flex-wrap:wrap;background:var(--bg1);border:1px solid var(--line);border-radius:var(--r);padding:20px 24px;margin-bottom:22px;position:sticky;top:70px;z-index:50}
+.uavatar{width:64px;height:64px;border-radius:50%;background:var(--bg2);border:2.5px solid var(--yellow);display:grid;place-items:center;font-family:var(--f-display);font-weight:800;font-size:1.3rem;letter-spacing:.04em;color:var(--yellow);flex:none}
+.uinfo{flex:1;min-width:220px}
+.uinfo h2{font-family:var(--f-display);font-weight:800;font-size:1.7rem;letter-spacing:.05em;line-height:1.15}
+.uinfo .u-meta{color:var(--muted);font-size:.88rem;margin-top:3px}
+.uinfo .u-last{color:var(--muted);font-size:.8rem;margin-top:8px}
+.uinfo .u-last b{color:var(--txt);font-weight:600}
+.uinfo .u-last .delta{color:var(--orange);white-space:nowrap}
+.uactions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+/* ============ TABELLA ============ */
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:11px}
+table{width:100%;min-width:1120px;border-collapse:collapse;font-variant-numeric:tabular-nums}
+thead th{position:sticky;top:0;background:var(--bg2);color:#a9a8b5;font-size:.66rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:11px 10px;border-bottom:2px solid #3d3d4a;white-space:nowrap;text-align:left;z-index:2}
+thead th.num{text-align:right}
+th.th-sort{cursor:pointer;user-select:none}
+th.th-sort:hover{color:var(--yellow)}
+th.th-sort .arr{color:var(--orange);font-size:.72rem}
+tbody td{padding:9px 10px;border-bottom:1px solid #2d2d38;font-size:.87rem;white-space:nowrap}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:#2a2a35}
+td.num{text-align:right;font-family:var(--f-mono);font-size:.82rem}
+td.c-date{font-family:var(--f-mono);font-size:.82rem;color:var(--yellow)}
+.nd{color:#55545f}
+td.c-note{max-width:200px;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
+td.c-act{text-align:center;width:60px}
+.row-del{background:none;border:1px solid transparent;color:var(--faint);border-radius:7px;padding:5px 7px;cursor:pointer;display:inline-grid;place-items:center;transition:.15s;font-size:.72rem;font-weight:700}
+.row-del:hover{color:var(--red);border-color:var(--red)}
+.row-del.confirm{background:var(--red);color:#fff;border-color:var(--red)}
+.row-edit{background:none;border:1px solid transparent;color:var(--faint);border-radius:7px;padding:5px 7px;cursor:pointer;display:inline-grid;place-items:center;transition:.15s}
+.row-edit:hover{color:var(--yellow);border-color:var(--yellow)}
+tr.flash{animation:rowflash 1.8s ease}
+@keyframes rowflash{0%{background:rgba(255,215,0,.18)}100%{background:transparent}}
+td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
+
+/* ============ SCHERMATA GRAFICI ============ */
+.chips-wrap{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.chips{display:flex;gap:9px;flex-wrap:wrap;flex:1;min-width:280px}
+.chip{display:inline-flex;align-items:center;gap:7px;border:1.5px solid var(--line2);border-radius:999px;padding:7px 15px;cursor:pointer;font-size:.82rem;color:var(--muted);transition:.15s;user-select:none;background:var(--bg0);font-family:inherit}
+.chip .ck{width:13px;height:13px;stroke:#18181d;stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round;display:none}
+.chip:hover{border-color:var(--orange);color:var(--txt)}
+.chip.on{background:var(--yellow);border-color:var(--yellow);color:#18181d;font-weight:700}
+.chip.on .ck{display:block}
+.chip.on:hover{background:#ffe14d}
+.chip.off{opacity:.35;cursor:not-allowed}
+.chip.off:hover{border-color:var(--line2);color:var(--muted)}
+.chip.shake{animation:shk .38s ease}
+@keyframes shk{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}50%{transform:translateX(5px)}75%{transform:translateX(-3px)}}
+.chips-hint{width:100%;font-size:.75rem;color:var(--faint);margin-top:4px}
+#chartsGrid{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+#chartsGrid.solo{grid-template-columns:minmax(0,880px);justify-content:center}
+.chart-card{background:var(--bg1);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;animation:cardIn .45s ease backwards}
+@keyframes cardIn{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
+.ch-head{display:flex;align-items:center;gap:14px;padding:13px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.ch-title{font-family:var(--f-display);font-weight:800;font-size:1rem;letter-spacing:.06em;text-transform:uppercase}
+.ch-title span{font-size:.68rem;color:var(--faint);margin-left:7px;letter-spacing:.1em;font-weight:400;text-transform:none}
+.ch-meta{font-size:.82rem;color:var(--muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ch-meta b{color:var(--txt);font-family:var(--f-mono);font-weight:600;font-size:.88rem}
+.ch-meta .delta{color:var(--orange);white-space:nowrap;font-family:var(--f-mono);font-size:.78rem}
+.ch-tools{margin-left:auto;display:flex;gap:6px;align-items:center}
+.mode-btn{border:1px solid var(--line2);background:transparent;color:var(--muted);width:30px;height:27px;border-radius:7px;display:grid;place-items:center;cursor:pointer;transition:.15s}
+.mode-btn:hover{color:var(--txt);border-color:var(--muted)}
+.mode-btn.on{background:var(--yellow);border-color:var(--yellow);color:#18181d}
+.zoom-btn{border:1px solid var(--line2);background:transparent;color:var(--muted);width:30px;height:27px;border-radius:7px;display:grid;place-items:center;cursor:pointer;transition:.15s;font-size:16px;font-weight:700;line-height:1}
+.zoom-btn:hover{color:var(--txt);border-color:var(--muted)}
+.zoom-btn:active{transform:scale(.92)}
+.avg-btn{border:1px solid var(--line2);background:transparent;color:var(--muted);height:27px;padding:0 10px;border-radius:7px;display:grid;place-items:center;cursor:pointer;transition:.15s;font-size:11px;font-weight:600;white-space:nowrap}
+.avg-btn:hover{color:var(--txt);border-color:var(--muted)}
+.avg-btn.on{background:var(--orange);border-color:var(--orange);color:#18181d}
+.ch-scroll{overflow-x:auto;overflow-y:hidden;position:relative}
+.ch-scroll::-webkit-scrollbar{height:6px}
+.ch-scroll::-webkit-scrollbar-track{background:var(--bg0)}
+.ch-scroll::-webkit-scrollbar-thumb{background:#3c3c48;border-radius:3px}
+.ch-canvas-wrap{min-width:100%;position:relative}
+.ch-body{position:relative;width:100%;background:#202028}
+.ch-body canvas{display:block}
+.chart-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:4px}
+
+/* ============ MODALI ============ */
+.overlay{position:fixed;inset:0;z-index:100;background:rgba(12,12,16,.6);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;padding:20px}
+.overlay.show{display:flex;animation:ovIn .2s ease}
+@keyframes ovIn{from{opacity:0}to{opacity:1}}
+.modal{background:var(--bg1);border:1px solid var(--line2);border-radius:16px;padding:26px 28px;width:min(440px,100%);animation:mdIn .25s ease}
+@keyframes mdIn{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+.modal h3{font-family:var(--f-display);font-weight:800;letter-spacing:.1em;text-transform:uppercase;font-size:1.05rem;margin-bottom:4px}
+.modal .m-sub{font-size:.82rem;color:var(--muted);margin-bottom:18px}
+.modal form{display:flex;flex-direction:column;gap:13px}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
+#delText{color:var(--muted);font-size:.92rem;margin-top:10px;line-height:1.6}
+#delText b{color:var(--txt)}
+
+/* ============ TOAST ============ */
+#toasts{position:fixed;bottom:22px;right:22px;z-index:200;display:flex;flex-direction:column;gap:9px;max-width:min(360px,90vw)}
+.toast{background:var(--bg2);border:1px solid var(--line2);border-left:4px solid var(--yellow);border-radius:10px;padding:12px 16px;font-size:.86rem;box-shadow:0 10px 30px rgba(0,0,0,.45);animation:tIn .28s ease}
+.toast.err{border-left-color:var(--red)}
+.toast.warn{border-left-color:var(--orange)}
+.toast.out{opacity:0;transform:translateX(14px);transition:.35s ease}
+@keyframes tIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
+
+/* ============ RESPONSIVE ============ */
+@media(max-width:940px){
+  #chartsGrid,#chartsGrid.solo{grid-template-columns:1fr}
+  .f-row-dates{grid-template-columns:1fr 1fr}
+  main{padding-top:118px}
+  .uactions{width:100%}
+  .brand p{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ INTESTAZIONE FISSA ============ -->
+<header id="topbar">
+  <div class="bar-inner">
+    <div class="brand" id="brandBtn" title="Torna alla Home" role="button" tabindex="0">
+      <div>
+        <h1>PHOENIX <b>FITNESS</b></h1>
+        <p>Dal 2016 al vostro servizio</p>
+      </div>
+    </div>
+    <nav id="crumbs" aria-label="Percorso"></nav>
+  </div>
+</header>
+
+<main>
+
+<!-- ============ SCHERMATA 1: HOME ============ -->
+<section id="screen-home" class="screen active">
+  <div class="home-logo">
+    <h2 class="home-title">PHOENIX <b>FITNESS</b></h2>
+    <p class="home-sub">Archivio misurazioni utenti</p>
+  </div>
+
+  <div class="search-box" id="searchBox">
+    <div class="search-shell">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.6 15.6 21 21"/></svg>
+      <input id="searchInput" type="text" placeholder="Cerca un utente per nome o cognome…" autocomplete="off" spellcheck="false" aria-label="Cerca atleta">
+      <button id="searchClear" hidden title="Cancella" aria-label="Cancella ricerca">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div id="searchResults" role="listbox"></div>
+  </div>
+
+  <div class="home-actions">
+    <select id="userSelect" class="user-select" style="background:var(--bg1);border:1.5px solid var(--line2);border-radius:999px;padding:12px 20px;font-size:.95rem;color:var(--txt);cursor:pointer;min-width:280px">
+      <option value="">Seleziona un utente...</option>
+    </select>
+  </div>
+
+  <div class="home-actions">
+    <button class="btn btn-primary" id="btnNewUser">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      Nuovo Utente
+    </button>
+  </div>
+
+  <div id="recentRow"></div>
+  <p id="homeStats" class="home-stats"></p>
+</section>
+
+<!-- ============ SCHERMATA 2: SCHEDA UTENTE ============ -->
+<section id="screen-user" class="screen">
+  <div class="uhead">
+    <div style="width:100%;margin-bottom:4px"><span style="font-family:var(--f-display);font-weight:700;font-size:.82rem;letter-spacing:.16em;text-transform:uppercase;color:var(--txt)">Anagrafica</span></div>
+    <div class="uavatar" id="uAvatar">—</div>
+    <div class="uinfo">
+      <h2 id="uName">—</h2>
+      <p class="u-meta" id="uMeta"></p>
+      <p class="u-meta" id="uSesso"></p>
+      <p class="u-last" id="uLast"></p>
+    </div>
+    <div class="uactions">
+      <button class="btn-icon" id="btnEditUser" title="Modifica anagrafica">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+      </button>
+      <button class="btn-icon" id="btnDelUser" title="Elimina utente">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13M10 11v5M14 11v5"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:22px">
+    <button class="btn" id="btnGoMeas" style="background:var(--yellow);color:#18181d;border-color:var(--yellow)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      Nuova Misurazione
+    </button>
+    <button class="btn" id="btnGoHist" style="background:var(--orange);color:#18181d;border-color:var(--orange)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      Tabulato
+    </button>
+    <button class="btn" id="btnCharts" style="background:var(--red);color:#fff;border-color:var(--red)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 20v-8M11 20V5M17 20v-6"/><path d="M3 20h18"/></svg>
+      Grafici
+    </button>
+    <button class="btn btn-ghost" id="btnPrint">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z"/></svg>
+      Esporta PDF
+    </button>
+  </div>
+
+</section>
+
+<!-- ============ SCHERMATA 5: NUOVA MISURAZIONE ============ -->
+<section id="screen-meas" class="screen">
+  <div class="panel" id="panelMeas">
+    <div class="panel-title">Nuova Misurazione</div>
+    <div style="margin-bottom:16px">
+      <button class="btn btn-ghost" id="btnBackUser3">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+        Torna alla Scheda
+      </button>
+    </div>
+    <form id="measForm" autocomplete="off" novalidate>
+      <div class="f-row-dates">
+        <div class="field">
+          <label for="mData">Data</label>
+          <input type="date" id="mData" required>
+        </div>
+        <div class="field">
+          <label for="mAnni">Anni (automatico)</label>
+          <input type="text" id="mAnni" readonly tabindex="-1" placeholder="—">
+        </div>
+      </div>
+      <div class="f-grid">
+        <div class="field"><label for="f_peso">Peso (kg)</label><input type="number" id="f_peso" step="0.1" min="0" inputmode="decimal"></div>
+        <div class="field"><label for="f_altezza">Altezza (cm)</label><input type="number" id="f_altezza" step="0.1" min="0" inputmode="decimal"></div>
+        <div class="field"><label for="f_fm">FM % (massa grassa)</label><input type="number" id="f_fm" step="0.1" min="0" inputmode="decimal"></div>
+        <div class="field"><label for="f_ffm">FFM (massa magra, kg)</label><input type="number" id="f_ffm" step="0.1" min="0" inputmode="decimal"></div>
+        <div class="field"><label for="f_viscerale">Grasso viscerale (kg)</label><input type="number" id="f_viscerale" step="0.1" min="0" inputmode="decimal"></div>
+        <div class="field"><label for="f_bmi">BMI (kg/m²)</label><input type="number" id="f_bmi" step="0.1" min="0" inputmode="decimal"></div>
+        <div class="field"><label for="f_tdee">TDEE (kcal)</label><input type="number" id="f_tdee" step="1" min="0" inputmode="numeric"></div>
+        <div class="field"><label for="f_etaBio">Età biologica (anni)</label><input type="number" id="f_etaBio" step="0.1" min="0" inputmode="decimal"></div>
+        <div class="field"><label for="f_idratazione">Idratazione (%)</label><input type="number" id="f_idratazione" step="0.1" min="0" inputmode="decimal"></div>
+        <div class="field"><label for="f_fmTronco">FM tronco (%)</label><input type="number" id="f_fmTronco" step="0.1" min="0" inputmode="decimal"></div>
+      </div>
+      <div class="field f-notes">
+        <label for="f_note">Note</label>
+        <input type="text" id="f_note" maxlength="220" placeholder="Annotazioni libere sulla misurazione…">
+      </div>
+      <p class="f-hint">I campi numerici sono opzionali: vengono registrati solo i valori compilati. L'età è calcolata automaticamente sulla data della misurazione.</p>
+      <div class="f-submit">
+        <button type="button" class="dice-btn" id="btnDice" title="Compila casualmente (sviluppatori)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8.5" cy="8.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="8.5" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="8.5" cy="15.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.2" fill="currentColor"/></svg>
+        </button>
+        <button type="submit" class="btn btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 7"/></svg>
+          Registra Misurazione
+        </button>
+      </div>
+    </form>
+  </div>
+
+</section>
+
+<!-- ============ SCHERMATA 4: TABULATO ============ -->
+<section id="screen-hist" class="screen">
+  <div class="panel">
+    <div class="panel-title">Tabulato <span class="badge" id="histCount">0</span></div>
+    <div style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-ghost" id="btnBackUser2">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+        Torna alla Scheda
+      </button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="th-sort" id="thData" data-col="data" title="Clicca per invertire l'ordine">Data <span class="arr" id="thArrow">↓</span></th>
+            <th class="num th-sort" data-col="anni" title="Clicca per invertire l'ordine">Anni <span class="arr"></span></th>
+            <th class="num th-sort" data-col="peso" title="Clicca per invertire l'ordine">Peso (kg) <span class="arr"></span></th>
+            <th class="num th-sort" data-col="altezza" title="Clicca per invertire l'ordine">Altezza (cm) <span class="arr"></span></th>
+            <th class="num th-sort" data-col="fm" title="Clicca per invertire l'ordine">FM % <span class="arr"></span></th>
+            <th class="num th-sort" data-col="ffm" title="Clicca per invertire l'ordine">FFM (kg) <span class="arr"></span></th>
+            <th class="num th-sort" data-col="viscerale" title="Clicca per invertire l'ordine">Visc. (kg) <span class="arr"></span></th>
+            <th class="num th-sort" data-col="bmi" title="Clicca per invertire l'ordine">BMI <span class="arr"></span></th>
+            <th class="num th-sort" data-col="tdee" title="Clicca per invertire l'ordine">TDEE (kcal) <span class="arr"></span></th>
+            <th class="num th-sort" data-col="etaBio" title="Clicca per invertire l'ordine">Età bio <span class="arr"></span></th>
+            <th class="num th-sort" data-col="idratazione" title="Clicca per invertire l'ordine">Idrataz. % <span class="arr"></span></th>
+            <th class="num th-sort" data-col="fmTronco" title="Clicca per invertire l'ordine">FM tronco % <span class="arr"></span></th>
+            <th>Note</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="histBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SCHERMATA 3: GRAFICI ============ -->
+<section id="screen-charts" class="screen">
+  <div class="panel">
+    <div class="panel-title">Grafici <span class="badge" id="chipCount">4/4</span></div>
+    <div style="margin-bottom:16px">
+      <button class="btn btn-ghost" id="btnBackUser">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+        Torna alla Scheda
+      </button>
+    </div>
+    <div class="chips-wrap">
+      <div class="chips" id="chipList"></div>
+    </div>
+    <p class="chips-hint">Seleziona al massimo <b>4 parametri</b> contemporaneamente: i grafici si aggiornano e si ridimensionano automaticamente nei riquadri in proporzione 2.20:1.</p>
+  </div>
+
+  <div id="chartsGrid"></div>
+
+
+</section>
+
+</main>
+
+<!-- ============ MODALE: NUOVO UTENTE ============ -->
+<div class="overlay" id="ovlNew">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="nuTitle">
+    <h3 id="nuTitle">Nuovo Utente</h3>
+    <p class="m-sub">Crea l'anagrafica: la scheda personale si aprirà subito dopo il salvataggio.</p>
+    <form id="newUserForm" novalidate>
+      <div class="field">
+        <label for="nuNome">Nome *</label>
+        <input type="text" id="nuNome" maxlength="40" required>
+        <p class="ferr" id="errNome" hidden>Inserisci il nome.</p>
+      </div>
+      <div class="field">
+        <label for="nuCognome">Cognome *</label>
+        <input type="text" id="nuCognome" maxlength="40" required>
+        <p class="ferr" id="errCognome" hidden>Inserisci il cognome.</p>
+      </div>
+      <div class="field">
+        <label>Sesso *</label>
+        <div style="display:flex;gap:10px">
+          <button type="button" class="btn btn-ghost" id="btnMale" style="flex:1;justify-content:center">♂ Maschio</button>
+          <button type="button" class="btn btn-ghost" id="btnFemale" style="flex:1;justify-content:center">♀ Femmina</button>
+        </div>
+        <p class="ferr" id="errSesso" hidden>Seleziona il sesso.</p>
+      </div>
+      <div class="field">
+        <label for="nuNascita">Data di nascita *</label>
+        <input type="date" id="nuNascita" required>
+        <p class="ferr" id="errNascita" hidden>Inserisci una data di nascita valida.</p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" data-close>Annulla</button>
+        <button type="submit" class="btn btn-primary">Crea Scheda</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ MODALE: MODIFICA UTENTE ============ -->
+<div class="overlay" id="ovlEdit">
+  <div class="modal" role="dialog" aria-modal="true">
+    <h3>Modifica Anagrafica</h3>
+    <p class="m-sub">Modifica i dati personali dell'utente.</p>
+    <form id="editUserForm" novalidate>
+      <div class="field">
+        <label for="edNome">Nome *</label>
+        <input type="text" id="edNome" maxlength="40" required>
+      </div>
+      <div class="field">
+        <label for="edCognome">Cognome *</label>
+        <input type="text" id="edCognome" maxlength="40" required>
+      </div>
+      <div class="field">
+        <label>Sesso *</label>
+        <div style="display:flex;gap:10px">
+          <button type="button" class="btn btn-ghost" id="edBtnMale" style="flex:1;justify-content:center">♂ Maschio</button>
+          <button type="button" class="btn btn-ghost" id="edBtnFemale" style="flex:1;justify-content:center">♀ Femmina</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="edNascita">Data di nascita *</label>
+        <input type="date" id="edNascita" required>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" data-close>Annulla</button>
+        <button type="submit" class="btn btn-primary">Salva Modifiche</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ MODALE: ELIMINA UTENTE ============ -->
+<div class="overlay" id="ovlDel">
+  <div class="modal" role="dialog" aria-modal="true">
+    <h3>Elimina Atleta</h3>
+    <p id="delText"></p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" data-close>Annulla</button>
+      <button type="button" class="btn btn-danger" id="btnDelConfirm">Elimina definitivamente</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts" aria-live="polite"></div>
+
+<script>
+'use strict';
+/* =====================================================
+   PHOENIX FITNESS — Vanilla JS, nessuna dipendenza
+   ===================================================== */
+
+// ---------- Costanti ----------
+const PARAMS = {
+  peso:       { label:'Peso',             unit:'kg',    dec:1 },
+  altezza:    { label:'Altezza',          unit:'cm',    dec:1 },
+  fm:         { label:'FM',               unit:'%',     dec:1 },
+  ffm:        { label:'FFM',              unit:'kg',    dec:1 },
+  viscerale:  { label:'Grasso Viscerale', unit:'kg',    dec:1 },
+  bmi:        { label:'BMI',              unit:'kg/m²', dec:1 },
+  tdee:       { label:'TDEE',             unit:'kcal',  dec:0 },
+  etaBio:     { label:'Età Biologica',    unit:'anni',  dec:0 },
+  idratazione:{ label:'Idratazione',      unit:'%',     dec:1 },
+  fmTronco:   { label:'FM Tronco',        unit:'%',     dec:1 },
+};
+const COLORS = ['#ffd700', '#ff8c00', '#ff4500', '#f2ead6'];
+const FONT = '"Segoe UI","Trebuchet MS",sans-serif';
+
+const ICON = {
+  trash:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13"/></svg>',
+  edit:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>',
+  line:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-6 4 3 6-8"/></svg>',
+  bar:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 20v-8M12 20V6M19 20v-11"/></svg>',
+  zoomIn:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.6 15.6 21 21M10.5 8v5M8 10.5h5"/></svg>',
+  zoomOut:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.6 15.6 21 21M8 10.5h5"/></svg>',
+};
+const TRI = up => `<svg viewBox="0 0 10 10" width="9" height="9" aria-hidden="true" style="vertical-align:-1px"><path d="M5 1.6 9 8.4H1z" fill="${up?'#ffd700':'#ff8c00'}" ${up?'':'transform="rotate(180 5 5)"'}/></svg>`;
+
+// ---------- Utility ----------
+const el = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'id-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+const pad2 = n => String(n).padStart(2, '0');
+const parseISO = s => { if (!s) return null; const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; };
+const fmtDate = iso => { const d = parseISO(iso); return d ? `${pad2(d.getDate())}/${pad2(d.getMonth()+1)}/${d.getFullYear()}` : '—'; };
+const fmtShort = t => { const d = new Date(t); return `${pad2(d.getDate())}/${pad2(d.getMonth()+1)}/${String(d.getFullYear()).slice(2)}`; };
+const fmtLong = t => { const d = new Date(t); return `${pad2(d.getDate())}/${pad2(d.getMonth()+1)}/${d.getFullYear()}`; };
+const fmtNum = (v, dec=1) => { const n = Number(v); return isNaN(n) ? '—' : n.toLocaleString('it-IT', { minimumFractionDigits:0, maximumFractionDigits:dec }); };
+const iniziali = u => ((u.nome||'')[0] || '').toUpperCase() + ((u.cognome||'')[0] || '').toUpperCase();
+
+function ageAt(birthISO, refISO) {
+  const b = parseISO(birthISO), r = parseISO(refISO);
+  if (!b || !r) return null;
+  let a = r.getFullYear() - b.getFullYear();
+  const m = r.getMonth() - b.getMonth();
+  if (m < 0 || (m === 0 && r.getDate() < b.getDate())) a--;
+  return a;
+}
+
+// ---------- Persistenza ----------
+const DB_KEY = 'phoenixFitDB', PREF_KEY = 'phoenixFitPrefs';
+let db = { users: [], recent: [] };
+let prefs = { charts: ['peso', 'fm', 'ffm', 'idratazione'], modes: {}, zoom: {}, avg: {} };
+
+function loadAll() {
+  try { const d = JSON.parse(localStorage.getItem(DB_KEY)); if (d && Array.isArray(d.users)) db = d; } catch(e){}
+  try {
+    const p = JSON.parse(localStorage.getItem(PREF_KEY));
+    if (p && Array.isArray(p.charts)) {
+      prefs.charts = p.charts.filter(k => PARAMS[k]).slice(0, 4);
+      prefs.modes = p.modes || {};
+    }
+  } catch(e){}
+  if (!prefs.charts.length) prefs.charts = ['peso'];
+}
+const saveDB = () => { try { localStorage.setItem(DB_KEY, JSON.stringify(db)); } catch(e){ console.error('Salvataggio fallito:', e); } };
+const savePrefs = () => { try { localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); } catch(e){ console.error('Salvataggio preferenze fallito:', e); } };
+const findUser = id => db.users.find(u => u.id === id);
+const currentUser = () => findUser(state.userId);
+
+// ---------- Stato ----------
+const state = { screen:'home', userId:null };
+let sortDesc = true, pendingDel = null, pendingT = null, justAdded = null, selIdx = -1, pendingEditId = null, sortCol = 'data';
+
+// ---------- Toast ----------
+function toast(msg, type='ok') {
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.textContent = msg;
+  el('toasts').appendChild(t);
+  setTimeout(() => t.classList.add('out'), 2500);
+  setTimeout(() => t.remove(), 2950);
+}
+
+// ---------- Navigazione ----------
+function renderCrumbs() {
+  const c = el('crumbs');
+  let html = `<button class="ck-home" data-go="home">Home</button>`;
+  const u = currentUser();
+  if (state.screen === 'user' || state.screen === 'meas' || state.screen === 'hist' || state.screen === 'charts') {
+    html += `<span class="sep">›</span><button class="ck-user" data-go="user">${esc(u ? u.nome + ' ' + u.cognome : 'Utente')}</button>`;
+  }
+  if (state.screen === 'meas') {
+    html += `<span class="sep">›</span><span class="cur">Nuova Misurazione</span>`;
+  }
+  if (state.screen === 'hist') {
+    html += `<span class="sep">›</span><span class="cur">Tabulato</span>`;
+  }
+  if (state.screen === 'charts') {
+    html += `<span class="sep">›</span><span class="cur">Grafici</span>`;
+  }
+  c.innerHTML = html;
+  c.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => go(b.dataset.go)));
+}
+
+function go(screen, userId) {
+  state.screen = screen;
+  if (userId !== undefined) state.userId = userId;
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  el('screen-' + screen).classList.add('active');
+  renderCrumbs();
+  if (screen === 'home') renderHome();
+  else if (screen === 'user') renderUser();
+  else if (screen === 'meas') renderMeas();
+  else if (screen === 'hist') renderHistory();
+  else if (screen === 'charts') renderCharts();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Salva i dati prima di chiudere la pagina
+window.addEventListener('beforeunload', () => {
+  saveDB();
+  savePrefs();
+});
+
+// Debounce utility per ottimizzare le performance
+function debounce(func, wait) {
+  let timeout;
+  return function(...args) {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func.apply(this, args), wait);
+  };
+}
+
+// ---------- Home ----------
+function renderHome() {
+  renderHomeStats();
+  renderRecent();
+  const sel = el('userSelect');
+  const users = db.users.slice().sort((a, b) => a.cognome.localeCompare(b.cognome) || a.nome.localeCompare(b.nome));
+  sel.innerHTML = '<option value="">Seleziona un utente...</option>' + users.map(u => '<option value="' + u.id + '">' + esc(u.cognome) + ' ' + esc(u.nome) + '</option>').join('');
+  const q = el('searchInput').value.trim().toLowerCase();
+  const results = el('searchResults');
+  if (q.length < 2) {
+    results.classList.remove('show');
+    results.innerHTML = '';
+    el('searchBox').classList.remove('open');
+    return;
+  }
+  el('searchBox').classList.add('open');
+  const matches = db.users.filter(u => 
+    (u.nome + ' ' + u.cognome).toLowerCase().includes(q) ||
+    u.nome.toLowerCase().includes(q) ||
+    u.cognome.toLowerCase().includes(q)
+  ).slice(0, 8);
+  if (!matches.length) {
+    results.innerHTML = `<div class="sr-empty">Nessun utente trovato per "<b>${esc(q)}</b>"</div>`;
+  } else {
+    results.innerHTML = matches.map((u, i) => {
+      const name = esc(u.nome + ' ' + u.cognome);
+      const highlighted = name.replace(new RegExp(`(${esc(q)})`, 'gi'), '<mark>$1</mark>');
+      const lastMeas = u.misure && u.misure.length ? u.misure[u.misure.length - 1] : null;
+      return `<button class="sr-item ${i === selIdx ? 'sel' : ''}" data-id="${u.id}" role="option">
+        <span class="sr-av">${esc(iniziali(u))}</span>
+        <span class="sr-name">${highlighted}</span>
+        <span class="sr-meta">${lastMeas ? fmtDate(lastMeas.data) : 'Nessuna misurazione'}</span>
+      </button>`;
+    }).join('');
+  }
+  results.classList.add('show');
+  results.querySelectorAll('.sr-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const u = findUser(item.dataset.id);
+      if (u) {
+        addToRecent(u.id);
+        go('user', u.id);
+      }
+    });
+  });
+}
+
+function addToRecent(userId) {
+  db.recent = db.recent.filter(id => id !== userId);
+  db.recent.unshift(userId);
+  db.recent = db.recent.slice(0, 5);
+  saveDB();
+  renderRecent();
+}
+
+function renderRecent() {
+  const row = el('recentRow');
+  if (!db.recent.length) { row.innerHTML = ''; return; }
+  const users = db.recent.map(findUser).filter(Boolean);
+  if (!users.length) { row.innerHTML = ''; return; }
+  row.innerHTML = '<span class="rc-label">Recenti</span>' + users.map(u => 
+    '<button class="rc" data-id="' + u.id + '"><i>' + esc(iniziali(u)) + '</i>' + esc(u.nome) + ' ' + esc(u.cognome) + '</button>'
+  ).join('');
+  row.querySelectorAll('.rc').forEach(b => b.addEventListener('click', () => go('user', b.dataset.id)));
+}
+
+function renderHomeStats() {
+  const total = db.users.length;
+  const totalMeas = db.users.reduce((s, u) => s + (u.misure ? u.misure.length : 0), 0);
+  el('homeStats').textContent = total + ' utenti registrati · ' + totalMeas + ' misurazioni totali';
+}
+
+// ---------- Scheda Utente ----------
+function renderUser() {
+  const u = currentUser();
+  if (!u) { go('home'); return; }
+  el('uAvatar').textContent = iniziali(u) || '—';
+  el('uName').textContent = `${u.nome} ${u.cognome}`;
+  const birth = u.nascita ? fmtDate(u.nascita) : '—';
+  const age = u.nascita ? ageAt(u.nascita, todayISO()) : null;
+  const sessoSym = u.sesso === 'M' ? ' ♂' : u.sesso === 'F' ? ' ♀' : '';
+  el('uMeta').textContent = `Nato il ${birth}${age !== null ? ' · ' + age + ' anni' + sessoSym : ''}`;
+  const misure = u.misure || [];
+  if (misure.length) {
+    const last = misure[misure.length - 1];
+    const days = Math.floor((new Date(todayISO()) - parseISO(last.data)) / 86400000);
+    el('uLast').innerHTML = `Ultima misurazione: <b>${fmtDate(last.data)}</b> <span class="delta">(${days === 0 ? 'oggi' : days + ' giorni fa'})</span>`;
+  } else {
+    el('uLast').textContent = 'Nessuna misurazione registrata';
+  }
+  el('histCount').textContent = misure.length;
+  renderHistory();
+}
+
+function renderHistory() {
+  const u = currentUser();
+  if (!u) return;
+  const misure = [...(u.misure || [])].sort((a, b) => {
+    let va, vb;
+    if (sortCol === 'data') { va = a.data; vb = b.data; }
+    else if (sortCol === 'anni') { va = ageAt(u.nascita, a.data); vb = ageAt(u.nascita, b.data); }
+    else { va = a[sortCol]; vb = b[sortCol]; }
+    if (va === undefined || va === null) va = sortDesc ? -Infinity : Infinity;
+    if (vb === undefined || vb === null) vb = sortDesc ? -Infinity : Infinity;
+    if (va < vb) return sortDesc ? 1 : -1;
+    if (va > vb) return sortDesc ? -1 : 1;
+    return 0;
+  });
+  const tbody = el('histBody');
+  if (!misure.length) {
+    tbody.innerHTML = '<tr><td colspan="14" class="empty">Nessuna misurazione registrata. Aggiungi la prima misurazione qui sopra.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = misure.map(m => {
+    const anni = ageAt(u.nascita, m.data);
+    return '<tr data-id="' + m.id + '" class="' + (m.id === justAdded ? 'flash' : '') + '">' +
+      '<td class="c-date">' + fmtDate(m.data) + '</td>' +
+      '<td class="num">' + (anni !== null ? anni : '—') + '</td>' +
+      '<td class="num">' + (m.peso !== undefined && m.peso !== null ? fmtNum(m.peso, 1) : '<span class="nd">—</span>') + '</td>' +
+      '<td class="num">' + (m.altezza !== undefined && m.altezza !== null ? fmtNum(m.altezza, 1) : '<span class="nd">—</span>') + '</td>' +
+      '<td class="num">' + (m.fm !== undefined && m.fm !== null ? fmtNum(m.fm, 1) : '<span class="nd">—</span>') + '</td>' +
+      '<td class="num">' + (m.ffm !== undefined && m.ffm !== null ? fmtNum(m.ffm, 1) : '<span class="nd">—</span>') + '</td>' +
+      '<td class="num">' + (m.viscerale !== undefined && m.viscerale !== null ? fmtNum(m.viscerale, 1) : '<span class="nd">—</span>') + '</td>' +
+      '<td class="num">' + (m.bmi !== undefined && m.bmi !== null ? fmtNum(m.bmi, 1) : '<span class="nd">—</span>') + '</td>' +
+      '<td class="num">' + (m.tdee !== undefined && m.tdee !== null ? fmtNum(m.tdee, 0) : '<span class="nd">—</span>') + '</td>' +
+      '<td class="num">' + (m.etaBio !== undefined && m.etaBio !== null ? fmtNum(m.etaBio, 0) : '<span class="nd">—</span>') + '</td>' +
+      '<td class="num">' + (m.idratazione !== undefined && m.idratazione !== null ? fmtNum(m.idratazione, 1) : '<span class="nd">—</span>') + '</td>' +
+      '<td class="num">' + (m.fmTronco !== undefined && m.fmTronco !== null ? fmtNum(m.fmTronco, 1) : '<span class="nd">—</span>') + '</td>' +
+      '<td class="c-note">' + esc(m.note || '') + '</td>' +
+      '<td class="c-act"><button class="row-edit" data-edit="' + m.id + '" title="Modifica misurazione">' + ICON.edit + '</button><button class="row-del" data-del="' + m.id + '" title="Elimina misurazione">' + ICON.trash + '</button></td>' +
+    '</tr>';
+  }).join('');
+  tbody.querySelectorAll('[data-del]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (pendingDel === btn.dataset.del) {
+        deleteMeasurement(btn.dataset.del);
+        pendingDel = null;
+      } else {
+        pendingDel = btn.dataset.del;
+        btn.classList.add('confirm');
+        btn.textContent = 'Conferma?';
+        setTimeout(() => { pendingDel = null; btn.classList.remove('confirm'); btn.innerHTML = ICON.trash; }, 3000);
+      }
+    });
+  });
+  tbody.querySelectorAll('[data-edit]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      editMeasurement(btn.dataset.edit);
+    });
+  });
+  if (justAdded) {
+    setTimeout(() => { justAdded = null; }, 2000);
+  }
+}
+
+function deleteMeasurement(id) {
+  const u = currentUser();
+  if (!u) return;
+  u.misure = (u.misure || []).filter(m => m.id !== id);
+  saveDB();
+  renderUser();
+  toast('Misurazione eliminata');
+}
+
+function editMeasurement(id) {
+  const u = currentUser();
+  if (!u) return;
+  const m = (u.misure || []).find(x => x.id === id);
+  if (!m) return;
+  el('mData').value = m.data;
+  el('f_peso').value = m.peso !== undefined && m.peso !== null ? m.peso : '';
+  el('f_altezza').value = m.altezza !== undefined && m.altezza !== null ? m.altezza : '';
+  el('f_fm').value = m.fm !== undefined && m.fm !== null ? m.fm : '';
+  el('f_ffm').value = m.ffm !== undefined && m.ffm !== null ? m.ffm : '';
+  el('f_viscerale').value = m.viscerale !== undefined && m.viscerale !== null ? m.viscerale : '';
+  el('f_bmi').value = m.bmi !== undefined && m.bmi !== null ? m.bmi : '';
+  el('f_tdee').value = m.tdee !== undefined && m.tdee !== null ? m.tdee : '';
+  el('f_etaBio').value = m.etaBio !== undefined && m.etaBio !== null ? m.etaBio : '';
+  el('f_idratazione').value = m.idratazione !== undefined && m.idratazione !== null ? m.idratazione : '';
+  el('f_fmTronco').value = m.fmTronco !== undefined && m.fmTronco !== null ? m.fmTronco : '';
+  el('f_note').value = m.note || '';
+  updateAgeField();
+  pendingEditId = id;
+  toast('Misurazione caricata nel form. Modifica e registra per salvare.');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function fillRandomData() {
+  const rnd = (min, max, dec) => {
+    const v = min + Math.random() * (max - min);
+    return Number(v.toFixed(dec));
+  };
+  const u = currentUser();
+  const anni = u && u.nascita ? (ageAt(u.nascita, el('mData').value) || 30) : 30;
+  const altezza = rnd(150, 200, 1);
+  const peso = rnd(50, 120, 1);
+  const fm = rnd(8, 35, 1);
+  const ffm = Math.round(peso * (1 - fm / 100) * 10) / 10;
+  const viscerale = rnd(1, 15, 1);
+  const bmi = Math.round(peso / Math.pow(altezza / 100, 2) * 10) / 10;
+  const tdee = rnd(1500, 3500, 0);
+  const etaBio = Math.max(18, anni + rnd(-5, 10, 0));
+  const idratazione = rnd(45, 70, 1);
+  const fmTronco = Math.max(5, fm + rnd(-3, 3, 1));
+  el('f_peso').value = peso;
+  el('f_altezza').value = altezza;
+  el('f_fm').value = fm;
+  el('f_ffm').value = ffm;
+  el('f_viscerale').value = viscerale;
+  el('f_bmi').value = bmi;
+  el('f_tdee').value = tdee;
+  el('f_etaBio').value = etaBio;
+  el('f_idratazione').value = idratazione;
+  el('f_fmTronco').value = fmTronco;
+  updateAgeField();
+}
+
+// ---------- Nuovo Utente ----------
+function openNewUser() {
+  el('ovlNew').classList.add('show');
+  el('nuNome').focus();
+}
+
+function closeModals() {
+  document.querySelectorAll('.overlay').forEach(o => o.classList.remove('show'));
+}
+
+let newUserSesso = null, editUserSesso = null;
+
+function createUser(e) {
+  e.preventDefault();
+  const nome = el('nuNome').value.trim();
+  const cognome = el('nuCognome').value.trim();
+  const nascita = el('nuNascita').value;
+  let valid = true;
+  if (!nome) { el('errNome').hidden = false; valid = false; } else { el('errNome').hidden = true; }
+  if (!cognome) { el('errCognome').hidden = false; valid = false; } else { el('errCognome').hidden = true; }
+  if (!newUserSesso) { el('errSesso').hidden = false; valid = false; } else { el('errSesso').hidden = true; }
+  if (!nascita || parseISO(nascita) > new Date()) { el('errNascita').hidden = false; valid = false; } else { el('errNascita').hidden = true; }
+  if (!valid) return;
+  const user = { id: uid(), nome, cognome, sesso: newUserSesso, nascita, misure: [] };
+  db.users.push(user);
+  saveDB();
+  closeModals();
+  el('newUserForm').reset();
+  newUserSesso = null;
+  toast(`Utente ${nome} ${cognome} creato con successo`);
+  go('user', user.id);
+}
+
+function openEditUser() {
+  const u = currentUser();
+  if (!u) return;
+  el('edNome').value = u.nome;
+  el('edCognome').value = u.cognome;
+  el('edNascita').value = u.nascita;
+  editUserSesso = u.sesso || null;
+  updateEditSessoButtons();
+  el('ovlEdit').classList.add('show');
+}
+
+function updateEditSessoButtons() {
+  el('edBtnMale').classList.toggle('btn-primary', editUserSesso === 'M');
+  el('edBtnMale').classList.toggle('btn-ghost', editUserSesso !== 'M');
+  el('edBtnFemale').classList.toggle('btn-primary', editUserSesso === 'F');
+  el('edBtnFemale').classList.toggle('btn-ghost', editUserSesso !== 'F');
+}
+
+function saveEditUser(e) {
+  e.preventDefault();
+  const u = currentUser();
+  if (!u) return;
+  const nome = el('edNome').value.trim();
+  const cognome = el('edCognome').value.trim();
+  const nascita = el('edNascita').value;
+  if (!nome || !cognome || !nascita || !editUserSesso) { toast('Compila tutti i campi', 'err'); return; }
+  u.nome = nome;
+  u.cognome = cognome;
+  u.sesso = editUserSesso;
+  u.nascita = nascita;
+  saveDB();
+  closeModals();
+  renderUser();
+  toast('Anagrafica aggiornata con successo');
+}
+
+// ---------- Misurazioni ----------
+function submitMeasurement(e) {
+  e.preventDefault();
+  const u = currentUser();
+  if (!u) return;
+  const data = el('mData').value;
+  if (!data) { toast('Inserisci una data valida', 'err'); return; }
+  const fields = ['peso','altezza','fm','ffm','viscerale','bmi','tdee','etaBio','idratazione','fmTronco'];
+  let hasValue = false;
+  const vals = {};
+  fields.forEach(f => {
+    const v = el('f_' + f).value;
+    if (v !== '' && !isNaN(Number(v))) { vals[f] = Number(v); hasValue = true; }
+  });
+  const note = el('f_note').value.trim();
+  if (!hasValue) { toast('Inserisci almeno un valore numerico', 'warn'); return; }
+  if (!u.misure) u.misure = [];
+  if (pendingEditId) {
+    const m = u.misure.find(x => x.id === pendingEditId);
+    if (m) {
+      m.data = data;
+      fields.forEach(f => { if (vals[f] !== undefined) m[f] = vals[f]; else delete m[f]; });
+      m.note = note || undefined;
+      justAdded = m.id;
+      pendingEditId = null;
+      saveDB();
+      el('measForm').reset();
+      el('mData').value = todayISO();
+      updateAgeField();
+      renderUser();
+      toast('Misurazione aggiornata con successo');
+      return;
+    }
+    pendingEditId = null;
+  }
+  const m = { id: uid(), data };
+  Object.assign(m, vals);
+  if (note) m.note = note;
+  u.misure.push(m);
+  justAdded = m.id;
+  saveDB();
+  el('measForm').reset();
+  el('mData').value = todayISO();
+  updateAgeField();
+  renderUser();
+  toast('Misurazione registrata con successo');
+}
+
+function updateAgeField() {
+  const u = currentUser();
+  const data = el('mData').value;
+  if (!u || !data) { el('mAnni').value = '—'; return; }
+  const anni = ageAt(u.nascita, data);
+  el('mAnni').value = anni !== null ? anni + ' anni' : '—';
+}
+
+// ---------- Grafici ----------
+function renderCharts() {
+  const u = currentUser();
+  if (!u) { go('home'); return; }
+  renderChips();
+  renderChartGrid();
+}
+
+function renderChips() {
+  const list = el('chipList');
+  list.innerHTML = Object.keys(PARAMS).map(key => {
+    const p = PARAMS[key];
+    const on = prefs.charts.includes(key);
+    const off = !on && prefs.charts.length >= 4;
+    return '<button type="button" class="chip ' + (on ? 'on' : '') + ' ' + (off ? 'off' : '') + '" data-key="' + key + '">' +
+      '<svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 7"/></svg>' +
+      p.label +
+    '</button>';
+  }).join('');
+  el('chipCount').textContent = prefs.charts.length + '/4';
+  list.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const key = chip.dataset.key;
+      const idx = prefs.charts.indexOf(key);
+      if (idx >= 0) {
+        prefs.charts.splice(idx, 1);
+      } else if (prefs.charts.length < 4) {
+        prefs.charts.push(key);
+      } else {
+        chip.classList.add('shake');
+        setTimeout(() => chip.classList.remove('shake'), 400);
+        return;
+      }
+      savePrefs();
+      renderChips();
+      renderChartGrid();
+    });
+  });
+}
+
+function renderChartGrid() {
+  const u = currentUser();
+  if (!u) return;
+  const grid = el('chartsGrid');
+  const misure = (u.misure || []).slice().sort((a, b) => a.data.localeCompare(b.data));
+  if (!misure.length) {
+    grid.innerHTML = '<div class="panel"><p style="color:var(--muted);text-align:center;padding:20px;">Nessuna misurazione disponibile per i grafici.</p></div>';
+    return;
+  }
+  const solo = prefs.charts.length === 1;
+  grid.className = solo ? 'solo' : '';
+  grid.innerHTML = prefs.charts.map((key, i) => {
+    const p = PARAMS[key];
+    const mode = prefs.modes[key] || 'line';
+    const zoom = prefs.zoom ? prefs.zoom[key] || 1 : 1;
+    const showAvg = prefs.avg && prefs.avg[key] ? true : false;
+    const values = misure.map(m => m[key]).filter(v => v !== undefined && v !== null);
+    const last = values.length ? values[values.length - 1] : null;
+    const prev = values.length > 1 ? values[values.length - 2] : null;
+    const delta = last !== null && prev !== null ? last - prev : null;
+    return '<div class="chart-card" style="animation-delay:' + (i * 0.06) + 's">' +
+      '<div class="ch-head">' +
+        '<span class="ch-title">' + p.label + '<span>' + p.unit + '</span></span>' +
+        '<span class="ch-meta">' +
+          '<b>' + (last !== null ? fmtNum(last, p.dec) : '—') + '</b>' +
+          (delta !== null ? '<span class="delta">' + (delta > 0 ? '+' : '') + fmtNum(delta, p.dec) + '</span>' : '') +
+        '</span>' +
+        '<span class="ch-tools">' +
+          '<button class="avg-btn ' + (showAvg ? 'on' : '') + '" data-avg="' + key + '" title="Mostra media mobile">Media</button>' +
+          '<button class="mode-btn ' + (mode === 'line' ? 'on' : '') + '" data-mode="line" data-key="' + key + '" title="Grafico a linee">' + ICON.line + '</button>' +
+          '<button class="mode-btn ' + (mode === 'bar' ? 'on' : '') + '" data-mode="bar" data-key="' + key + '" title="Grafico a barre">' + ICON.bar + '</button>' +
+          '<button class="zoom-btn" data-zoom="in" data-key="' + key + '" title="Zoom in">' + ICON.zoomIn + '</button>' +
+          '<button class="zoom-btn" data-zoom="out" data-key="' + key + '" title="Zoom out">' + ICON.zoomOut + '</button>' +
+        '</span>' +
+      '</div>' +
+      '<div class="ch-scroll" id="scroll-' + key + '">' +
+        '<div class="ch-canvas-wrap" id="wrap-' + key + '">' +
+          '<div class="ch-body"><canvas id="chart-' + key + '"></canvas></div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+  grid.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.key;
+      prefs.modes[key] = btn.dataset.mode;
+      savePrefs();
+      renderChartGrid();
+    });
+  });
+  grid.querySelectorAll('.zoom-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.key;
+      const dir = btn.dataset.zoom;
+      if (!prefs.zoom) prefs.zoom = {};
+      const cur = prefs.zoom[key] || 1;
+      const next = dir === 'in' ? Math.min(cur * 1.5, 10) : Math.max(cur / 1.5, 1);
+      prefs.zoom[key] = next;
+      savePrefs();
+      renderChartGrid();
+    });
+  });
+  grid.querySelectorAll('.avg-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.avg;
+      if (!prefs.avg) prefs.avg = {};
+      prefs.avg[key] = !prefs.avg[key];
+      savePrefs();
+      renderChartGrid();
+    });
+  });
+  prefs.charts.forEach(key => drawChart(key, misure));
+}
+
+function drawChart(key, misure) {
+  const canvas = el('chart-' + key);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const wrap = el('wrap-' + key);
+  const scroll = el('scroll-' + key);
+  const zoom = prefs.zoom && prefs.zoom[key] ? prefs.zoom[key] : 1;
+  const showAvg = prefs.avg && prefs.avg[key] ? true : false;
+  const baseW = scroll.clientWidth || 600;
+  const W = Math.max(baseW * zoom, baseW);
+  const H = 280;
+  wrap.style.width = W + 'px';
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.scale(dpr, dpr);
+  const p = PARAMS[key];
+  const mode = prefs.modes[key] || 'line';
+  const data = misure.map(m => ({ x: m.data, y: m[key] })).filter(d => d.y !== undefined && d.y !== null);
+  if (data.length < 2) {
+    ctx.fillStyle = '#7c7b88';
+    ctx.font = '14px ' + FONT;
+    ctx.textAlign = 'center';
+    ctx.fillText('Servono almeno 2 misurazioni', W / 2, H / 2);
+    return;
+  }
+  const padL = 50, padR = 20, padT = 20, padB = 40;
+  const chartW = W - padL - padR, chartH = H - padT - padB;
+  const minY = Math.min(...data.map(d => d.y));
+  const maxY = Math.max(...data.map(d => d.y));
+  const rangeY = maxY - minY || 1;
+  const yMin = minY - rangeY * 0.1;
+  const yMax = maxY + rangeY * 0.1;
+  const xMin = new Date(data[0].x).getTime();
+  const xMax = new Date(data[data.length - 1].x).getTime();
+  const rangeX = xMax - xMin || 1;
+  const xScale = x => padL + ((new Date(x).getTime() - xMin) / rangeX) * chartW;
+  const yScale = y => padT + chartH - ((y - yMin) / (yMax - yMin)) * chartH;
+  // Grid
+  ctx.strokeStyle = '#34343f';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = padT + (chartH / 4) * i;
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+  }
+  // Y labels
+  ctx.fillStyle = '#7c7b88';
+  ctx.font = '11px ' + FONT;
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const val = yMax - ((yMax - yMin) / 4) * i;
+    ctx.fillText(fmtNum(val, p.dec), padL - 8, padT + (chartH / 4) * i + 4);
+  }
+  // X labels
+  ctx.textAlign = 'center';
+  const step = Math.ceil(data.length / 6);
+  data.forEach((d, i) => {
+    if (i % step === 0 || i === data.length - 1) {
+      ctx.fillText(fmtShort(d.x), xScale(d.x), H - padB + 18);
+    }
+  });
+  // Data
+  const color = COLORS[prefs.charts.indexOf(key) % COLORS.length];
+  if (mode === 'bar') {
+    const barW = Math.min(30, chartW / data.length * 0.6);
+    data.forEach(d => {
+      const x = xScale(d.x);
+      const y = yScale(d.y);
+      ctx.fillStyle = color + '88';
+      ctx.fillRect(x - barW / 2, y, barW, padT + chartH - y);
+    });
+  } else {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    data.forEach((d, i) => {
+      const x = xScale(d.x), y = yScale(d.y);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    // Area fill
+    ctx.lineTo(xScale(data[data.length - 1].x), padT + chartH);
+    ctx.lineTo(xScale(data[0].x), padT + chartH);
+    ctx.closePath();
+    ctx.fillStyle = color + '18';
+    ctx.fill();
+    // Points
+    data.forEach(d => {
+      ctx.beginPath();
+      ctx.arc(xScale(d.x), yScale(d.y), 4, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.strokeStyle = '#1e1e24';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    });
+  }
+  // Media mobile
+  if (showAvg && data.length >= 3) {
+    const avgData = [];
+    for (let i = 0; i < data.length; i++) {
+      const start = Math.max(0, i - 2);
+      const slice = data.slice(start, i + 1);
+      const avg = slice.reduce((s, d) => s + d.y, 0) / slice.length;
+      avgData.push({ x: data[i].x, y: avg });
+    }
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    avgData.forEach((d, i) => {
+      const x = xScale(d.x), y = yScale(d.y);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+// ---------- Elimina Utente ----------
+function openDeleteUser() {
+  const u = currentUser();
+  if (!u) return;
+  el('delText').innerHTML = `Stai per eliminare <b>${esc(u.nome)} ${esc(u.cognome)}</b> e tutte le sue misurazioni. Questa azione è irreversibile.`;
+  el('ovlDel').classList.add('show');
+}
+
+function confirmDeleteUser() {
+  const u = currentUser();
+  if (!u) return;
+  db.users = db.users.filter(x => x.id !== u.id);
+  db.recent = db.recent.filter(id => id !== u.id);
+  saveDB();
+  closeModals();
+  toast('Atleta eliminato definitivamente', 'warn');
+  go('home');
+}
+
+// ---------- Event Listeners ----------
+function init() {
+  loadAll();
+  el('mData').value = todayISO();
+  updateAgeField();
+  renderRecent();
+  renderHomeStats();
+  // Brand
+  el('brandBtn').addEventListener('click', () => go('home'));
+  el('brandBtn').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go('home'); } });
+  // Search
+  let searchTimeout;
+  el('searchInput').addEventListener('input', () => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => { selIdx = -1; renderHome(); }, 150);
+  });
+  el('searchInput').addEventListener('keydown', e => {
+    const items = el('searchResults').querySelectorAll('.sr-item');
+    if (e.key === 'ArrowDown') { e.preventDefault(); selIdx = Math.min(selIdx + 1, items.length - 1); items.forEach((it, i) => it.classList.toggle('sel', i === selIdx)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); selIdx = Math.max(selIdx - 1, 0); items.forEach((it, i) => it.classList.toggle('sel', i === selIdx)); }
+    else if (e.key === 'Enter' && selIdx >= 0 && items[selIdx]) { items[selIdx].click(); }
+  });
+  el('searchClear').addEventListener('click', () => { el('searchInput').value = ''; renderHome(); el('searchInput').focus(); });
+  document.addEventListener('click', e => { if (!el('searchBox').contains(e.target)) { el('searchResults').classList.remove('show'); el('searchBox').classList.remove('open'); } });
+  // User select dropdown
+  el('userSelect').addEventListener('change', () => {
+    const id = el('userSelect').value;
+    if (id) { addToRecent(id); go('user', id); }
+  });
+  // New user
+  el('btnNewUser').addEventListener('click', openNewUser);
+  el('newUserForm').addEventListener('submit', createUser);
+  el('btnMale').addEventListener('click', () => { newUserSesso = 'M'; el('btnMale').classList.add('btn-primary'); el('btnMale').classList.remove('btn-ghost'); el('btnFemale').classList.add('btn-ghost'); el('btnFemale').classList.remove('btn-primary'); el('errSesso').hidden = true; });
+  el('btnFemale').addEventListener('click', () => { newUserSesso = 'F'; el('btnFemale').classList.add('btn-primary'); el('btnFemale').classList.remove('btn-ghost'); el('btnMale').classList.add('btn-ghost'); el('btnMale').classList.remove('btn-primary'); el('errSesso').hidden = true; });
+  // Edit user
+  el('btnEditUser').addEventListener('click', openEditUser);
+  el('editUserForm').addEventListener('submit', saveEditUser);
+  el('edBtnMale').addEventListener('click', () => { editUserSesso = 'M'; updateEditSessoButtons(); });
+  el('edBtnFemale').addEventListener('click', () => { editUserSesso = 'F'; updateEditSessoButtons(); });
+  // Back buttons
+
+  el('btnBackUser').addEventListener('click', () => go('user'));
+  el('btnBackUser2').addEventListener('click', () => go('user'));
+  el('btnBackUser3').addEventListener('click', () => go('user'));
+  // Charts
+  el('btnCharts').addEventListener('click', () => go('charts'));
+  el('btnGoHist').addEventListener('click', () => go('hist'));
+  el('btnGoMeas').addEventListener('click', () => go('meas'));
+  el('btnPrint').addEventListener('click', () => {
+    const u = currentUser();
+    if (!u) return;
+    const misure = (u.misure || []).slice().sort((a, b) => a.data.localeCompare(b.data));
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write('<html><head><title>PHOENIX FITNESS - ' + esc(u.nome) + ' ' + esc(u.cognome) + '</title><style>body{font-family:sans-serif;padding:10px;font-size:11px}h1{font-size:16px;margin:5px 0;color:#18181d}h2{font-size:13px;margin:8px 0}table{width:100%;border-collapse:collapse;margin:5px 0;font-size:11px}th,td{border:1px solid #ddd;padding:4px;text-align:left;white-space:nowrap}th{background:#f5f5f5}</style></head><body>');
+    printWindow.document.write('<h1>PHOENIX FITNESS</h1>');
+    printWindow.document.write('<h2>Report: ' + esc(u.nome) + ' ' + esc(u.cognome) + '</h2>');
+    printWindow.document.write('<table><thead><tr><th>Data</th><th>Peso</th><th>Altezza</th><th>FM%</th><th>FFM</th><th>Visc.</th><th>BMI</th><th>TDEE</th><th>Età bio</th><th>Idrat.</th><th>FM tronco</th><th>Note</th></tr></thead><tbody>');
+    misure.forEach(m => {
+      printWindow.document.write('<tr><td>' + fmtDate(m.data) + '</td><td>' + (m.peso || '—') + '</td><td>' + (m.altezza || '—') + '</td><td>' + (m.fm || '—') + '</td><td>' + (m.ffm || '—') + '</td><td>' + (m.viscerale || '—') + '</td><td>' + (m.bmi || '—') + '</td><td>' + (m.tdee || '—') + '</td><td>' + (m.etaBio || '—') + '</td><td>' + (m.idratazione || '—') + '</td><td>' + (m.fmTronco || '—') + '</td><td>' + (m.note || '') + '</td></tr>');
+    });
+    printWindow.document.write('</tbody></table></body></html>');
+    printWindow.document.close();
+    printWindow.print();
+  });
+  // Delete user
+  el('btnDelUser').addEventListener('click', openDeleteUser);
+  el('btnDelConfirm').addEventListener('click', confirmDeleteUser);
+  // Close modals
+  document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeModals));
+  document.querySelectorAll('.overlay').forEach(o => o.addEventListener('click', e => { if (e.target === o) closeModals(); }));
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModals(); });
+  // Measurement form
+  el('measForm').addEventListener('submit', submitMeasurement);
+  el('mData').addEventListener('change', updateAgeField);
+  // Sort
+  document.querySelectorAll('.th-sort').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.col;
+      if (sortCol === col) { sortDesc = !sortDesc; }
+      else { sortCol = col; sortDesc = col === 'data'; }
+      document.querySelectorAll('.th-sort .arr').forEach(a => a.textContent = '');
+      th.querySelector('.arr').textContent = sortDesc ? '↓' : '↑';
+      renderHistory();
+    });
+  });
+  // Dice
+  el('btnDice').addEventListener('click', fillRandomData);
+  // Resize charts
+  let resizeTimeout;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(() => { if (state.screen === 'charts') renderChartGrid(); }, 200);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
