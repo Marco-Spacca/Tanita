@@ -818,7 +818,7 @@ function renderHistory() {
 
 async function renderMeas() {
   try {
-    const u = currentuser();
+    const u = currentUser();
     if (!u) return;
 
     const misurazioniSnapshot = await getDocs(
