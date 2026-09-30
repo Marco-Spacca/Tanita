@@ -816,6 +816,39 @@ function renderHistory() {
   }
 }
 
+async function renderMeas() {
+  try {
+    const u = currentuser();
+    if (!u) return;
+
+    const misurazioniSnapshot = await getDocs(
+      query(collection(db, "misurazioni"), where("userId", "==", u.id))
+    );
+    
+    const misurazioni = [];
+    misurazioniSnapshot.forEach((doc) => {
+      misurazioni.push({ id: doc.id, ...doc.data() });
+    });
+
+const tbody = el("measBody");
+if (misurazioni.length === 0) {
+  tbody.innerHTML = '<tr><td colspan="4" class="empty">Nessuna misurazione registrata</td></tr>';
+  return;
+}
+tbody.innerHTML = misurazioni.map(m => `
+  <tr>
+    <td class="c-date">${fmtDate(m.data)}</td>
+    <td class="num">${fmtNum(m.peso)} KG</td>
+    <td class="num">${fmtNum(m.f_bracciopDX)} CM</td>
+    <td class="num">${fmtNum(m.f_femoraleSX)} CM</td>
+  </tr>
+`).join('');
+    
+  } catch (error) {
+    console.error("Errore nel recupero delle misurazioni:", error);
+  }
+}
+
 function deleteMeasurement(id) {
   const u = currentUser();
   if (!u) return;
