@@ -590,6 +590,10 @@ td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
     return a;
   }
 
+  function findUser(id) {
+    return users.find(u => u.id === id);
+  }
+
   // ---------- Preferenze (localStorage) ----------
   function loadPrefs() {
     try {
@@ -1417,7 +1421,8 @@ td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
   // ---------- Avvio ----------
   loadPrefs();
   init();
-  loadUsers();
+  await loadUsers();
+  renderHome();
 </script>
 
 </body>
