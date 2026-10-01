@@ -223,6 +223,13 @@ td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
 .toast.out{opacity:0;transform:translateX(14px);transition:.35s ease}
 @keyframes tIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
 
+/* ============ LOADING ============ */
+#loadingOverlay{position:fixed;inset:0;z-index:300;background:var(--bg0);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;transition:opacity .4s ease}
+#loadingOverlay.hidden{opacity:0;pointer-events:none}
+.loading-spinner{width:50px;height:50px;border:3px solid var(--line2);border-top-color:var(--yellow);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-family:var(--f-display);font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);font-size:.85rem}
+
 /* ============ RESPONSIVE ============ */
 @media(max-width:940px){
   #chartsGrid,#chartsGrid.solo{grid-template-columns:1fr}
@@ -234,6 +241,12 @@ td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
 </style>
 </head>
 <body>
+
+<!-- ============ LOADING OVERLAY ============ -->
+<div id="loadingOverlay">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">Caricamento dati…</div>
+</div>
 
 <!-- ============ INTESTAZIONE FISSA ============ -->
 <header id="topbar">
@@ -522,845 +535,881 @@ td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
 
 <div id="toasts" aria-live="polite"></div>
 
-<script>
-'use strict';
-/* =====================================================
-   PHOENIX FITNESS — Vanilla JS, nessuna dipendenza
-   ===================================================== */
+<!-- ============ FIREBASE ============ -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+  import { getFirestore, collection, getDocs, setDoc, updateDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
-// ---------- Costanti ----------
-const PARAMS = {
-  peso:       { label:'Peso',             unit:'kg',    dec:1 },
-  altezza:    { label:'Altezza',          unit:'cm',    dec:1 },
-  fm:         { label:'FM',               unit:'%',     dec:1 },
-  ffm:        { label:'FFM',              unit:'kg',    dec:1 },
-  viscerale:  { label:'Grasso Viscerale', unit:'kg',    dec:1 },
-  bmi:        { label:'BMI',              unit:'kg/m²', dec:1 },
-  tdee:       { label:'TDEE',             unit:'kcal',  dec:0 },
-  etaBio:     { label:'Età Biologica',    unit:'anni',  dec:0 },
-  idratazione:{ label:'Idratazione',      unit:'%',     dec:1 },
-  fmTronco:   { label:'FM Tronco',        unit:'%',     dec:1 },
-};
-const COLORS = ['#ffd700', '#ff8c00', '#ff4500', '#f2ead6'];
-const FONT = '"Segoe UI","Trebuchet MS",sans-serif';
+  const firebaseConfig = {
+    apiKey: "AIzaSyDfE4-Ja0z-8bH0TUTvhrT94bxwNzObLKU",
+    authDomain: "misurazioni-tanita.firebaseapp.com",
+    projectId: "misurazioni-tanita",
+    storageBucket: "misurazioni-tanita.firebasestorage.app",
+    messagingSenderId: "746760842339",
+    appId: "1:746760842339:web:e5ef72ac72d087245e9c56"
+  };
 
-const ICON = {
-  trash:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13"/></svg>',
-  edit:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>',
-  line:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-6 4 3 6-8"/></svg>',
-  bar:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 20v-8M12 20V6M19 20v-11"/></svg>',
-  zoomIn:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.6 15.6 21 21M10.5 8v5M8 10.5h5"/></svg>',
-  zoomOut:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.6 15.6 21 21M8 10.5h5"/></svg>',
-};
-const TRI = up => `<svg viewBox="0 0 10 10" width="9" height="9" aria-hidden="true" style="vertical-align:-1px"><path d="M5 1.6 9 8.4H1z" fill="${up?'#ffd700':'#ff8c00'}" ${up?'':'transform="rotate(180 5 5)"'}/></svg>`;
+  const app = initializeApp(firebaseConfig);
+  const firestore = getFirestore(app);
 
-// ---------- Utility ----------
-const el = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const uid = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'id-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
-const pad2 = n => String(n).padStart(2, '0');
-const parseISO = s => { if (!s) return null; const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
-const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; };
-const fmtDate = iso => { const d = parseISO(iso); return d ? `${pad2(d.getDate())}/${pad2(d.getMonth()+1)}/${d.getFullYear()}` : '—'; };
-const fmtShort = t => { const d = new Date(t); return `${pad2(d.getDate())}/${pad2(d.getMonth()+1)}/${String(d.getFullYear()).slice(2)}`; };
-const fmtLong = t => { const d = new Date(t); return `${pad2(d.getDate())}/${pad2(d.getMonth()+1)}/${d.getFullYear()}`; };
-const fmtNum = (v, dec=1) => { const n = Number(v); return isNaN(n) ? '—' : n.toLocaleString('it-IT', { minimumFractionDigits:0, maximumFractionDigits:dec }); };
-const iniziali = u => ((u.nome||'')[0] || '').toUpperCase() + ((u.cognome||'')[0] || '').toUpperCase();
+  // Stato condiviso
+  let users = [];
+  let prefs = { charts: ['peso', 'fm', 'ffm', 'idratazione'], modes: {}, zoom: {}, avg: {} };
+  let state = { screen: 'home', userId: null };
+  let sortDesc = true, pendingDel = null, pendingT = null, justAdded = null, selIdx = -1, pendingEditId = null, sortCol = 'data';
+  let newUserSesso = null, editUserSesso = null;
 
-function ageAt(birthISO, refISO) {
-  const b = parseISO(birthISO), r = parseISO(refISO);
-  if (!b || !r) return null;
-  let a = r.getFullYear() - b.getFullYear();
-  const m = r.getMonth() - b.getMonth();
-  if (m < 0 || (m === 0 && r.getDate() < b.getDate())) a--;
-  return a;
-}
+  // ---------- Utility ----------
+  const el = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const uid = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'id-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+  const pad2 = n => String(n).padStart(2, '0');
+  const parseISO = s => { if (!s) return null; const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+  const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; };
+  const fmtDate = iso => { const d = parseISO(iso); return d ? `${pad2(d.getDate())}/${pad2(d.getMonth()+1)}/${d.getFullYear()}` : '—'; };
+  const fmtShort = t => { const d = new Date(t); return `${pad2(d.getDate())}/${pad2(d.getMonth()+1)}/${String(d.getFullYear()).slice(2)}`; };
+  const fmtLong = t => { const d = new Date(t); return `${pad2(d.getDate())}/${pad2(d.getMonth()+1)}/${d.getFullYear()}`; };
+  const fmtNum = (v, dec=1) => { const n = Number(v); return isNaN(n) ? '—' : n.toLocaleString('it-IT', { minimumFractionDigits:0, maximumFractionDigits:dec }); };
+  const iniziali = u => ((u.nome||'')[0] || '').toUpperCase() + ((u.cognome||'')[0] || '').toUpperCase();
 
-// ---------- Persistenza ----------
-const DB_KEY = 'phoenixFitDB', PREF_KEY = 'phoenixFitPrefs';
-let db = { users: [], recent: [] };
-let prefs = { charts: ['peso', 'fm', 'ffm', 'idratazione'], modes: {}, zoom: {}, avg: {} };
+  function ageAt(birthISO, refISO) {
+    const b = parseISO(birthISO), r = parseISO(refISO);
+    if (!b || !r) return null;
+    let a = r.getFullYear() - b.getFullYear();
+    const m = r.getMonth() - b.getMonth();
+    if (m < 0 || (m === 0 && r.getDate() < b.getDate())) a--;
+    return a;
+  }
 
-function loadAll() {
-  try { const d = JSON.parse(localStorage.getItem(DB_KEY)); if (d && Array.isArray(d.users)) db = d; } catch(e){}
-  try {
-    const p = JSON.parse(localStorage.getItem(PREF_KEY));
-    if (p && Array.isArray(p.charts)) {
-      prefs.charts = p.charts.filter(k => PARAMS[k]).slice(0, 4);
-      prefs.modes = p.modes || {};
+  // ---------- Preferenze (localStorage) ----------
+  function loadPrefs() {
+    try {
+      const p = JSON.parse(localStorage.getItem('phoenixFitPrefs'));
+      if (p && Array.isArray(p.charts)) {
+        prefs.charts = p.charts.filter(k => PARAMS[k]).slice(0, 4);
+        prefs.modes = p.modes || {};
+        prefs.zoom = p.zoom || {};
+        prefs.avg = p.avg || {};
+      }
+    } catch(e){}
+    if (!prefs.charts.length) prefs.charts = ['peso'];
+  }
+  const savePrefs = () => { try { localStorage.setItem('phoenixFitPrefs', JSON.stringify(prefs)); } catch(e){} };
+
+  // ---------- Firebase: Caricamento ----------
+  async function loadUsers() {
+    const loading = el('loadingOverlay');
+    try {
+      const querySnapshot = await getDocs(collection(firestore, "utenti"));
+      users = [];
+      querySnapshot.forEach((doc) => {
+        users.push({ id: doc.id, ...doc.data() });
+      });
+      console.log("Utenti caricati da Firestore:", users.length);
+    } catch (error) {
+      console.error("Errore nel caricamento utenti:", error);
+      toast("Errore nel caricamento dei dati da Firebase", "err");
+    } finally {
+      loading.classList.add('hidden');
     }
-  } catch(e){}
-  if (!prefs.charts.length) prefs.charts = ['peso'];
-}
-const saveDB = () => { try { localStorage.setItem(DB_KEY, JSON.stringify(db)); } catch(e){ console.error('Salvataggio fallito:', e); } };
-const savePrefs = () => { try { localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); } catch(e){ console.error('Salvataggio preferenze fallito:', e); } };
-const findUser = id => db.users.find(u => u.id === id);
-const currentUser = () => findUser(state.userId);
-
-// ---------- Stato ----------
-const state = { screen:'home', userId:null };
-let sortDesc = true, pendingDel = null, pendingT = null, justAdded = null, selIdx = -1, pendingEditId = null, sortCol = 'data';
-
-// ---------- Toast ----------
-function toast(msg, type='ok') {
-  const t = document.createElement('div');
-  t.className = 'toast ' + type;
-  t.textContent = msg;
-  el('toasts').appendChild(t);
-  setTimeout(() => t.classList.add('out'), 2500);
-  setTimeout(() => t.remove(), 2950);
-}
-
-// ---------- Navigazione ----------
-function renderCrumbs() {
-  const c = el('crumbs');
-  let html = `<button class="ck-home" data-go="home">Home</button>`;
-  const u = currentUser();
-  if (state.screen === 'user' || state.screen === 'meas' || state.screen === 'hist' || state.screen === 'charts') {
-    html += `<span class="sep">›</span><button class="ck-user" data-go="user">${esc(u ? u.nome + ' ' + u.cognome : 'Utente')}</button>`;
   }
-  if (state.screen === 'meas') {
-    html += `<span class="sep">›</span><span class="cur">Nuova Misurazione</span>`;
+
+  // ---------- Firebase: Salvataggio ----------
+  async function saveUserToFirestore(user) {
+    try {
+      const userRef = doc(firestore, "utenti", user.id);
+      await updateDoc(userRef, {
+        nome: user.nome,
+        cognome: user.cognome,
+        sesso: user.sesso,
+        nascita: user.nascita,
+        misure: user.misure || []
+      });
+    } catch (error) {
+      console.error("Errore nel salvataggio utente:", error);
+      toast("Errore nel salvataggio", "err");
+      throw error;
+    }
   }
-  if (state.screen === 'hist') {
-    html += `<span class="sep">›</span><span class="cur">Tabulato</span>`;
+
+  async function addUserToFirestore(user) {
+    try {
+      const userRef = doc(firestore, "utenti", user.id);
+      await setDoc(userRef, {
+        nome: user.nome,
+        cognome: user.cognome,
+        sesso: user.sesso,
+        nascita: user.nascita,
+        misure: []
+      });
+    } catch (error) {
+      console.error("Errore nella creazione utente:", error);
+      toast("Errore nella creazione", "err");
+      throw error;
+    }
   }
-  if (state.screen === 'charts') {
-    html += `<span class="sep">›</span><span class="cur">Grafici</span>`;
+
+  async function deleteUserFromFirestore(userId) {
+    try {
+      await deleteDoc(doc(firestore, "utenti", userId));
+    } catch (error) {
+      console.error("Errore nell'eliminazione utente:", error);
+      toast("Errore nell'eliminazione", "err");
+      throw error;
+    }
   }
-  c.innerHTML = html;
-  c.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => go(b.dataset.go)));
-}
 
-function go(screen, userId) {
-  state.screen = screen;
-  if (userId !== undefined) state.userId = userId;
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  el('screen-' + screen).classList.add('active');
-  renderCrumbs();
-  if (screen === 'home') renderHome();
-  else if (screen === 'user') renderUser();
-  else if (screen === 'meas') renderMeas();
-  else if (screen === 'hist') renderHistory();
-  else if (screen === 'charts') renderCharts();
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-// Salva i dati prima di chiudere la pagina
-window.addEventListener('beforeunload', () => {
-  saveDB();
-  savePrefs();
-});
-
-// Debounce utility per ottimizzare le performance
-function debounce(func, wait) {
-  let timeout;
-  return function(...args) {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func.apply(this, args), wait);
-  };
-}
-
-// ---------- Home ----------
-function renderHome() {
-  renderHomeStats();
-  renderRecent();
-  const sel = el('userSelect');
-  const users = db.users.slice().sort((a, b) => a.cognome.localeCompare(b.cognome) || a.nome.localeCompare(b.nome));
-  sel.innerHTML = '<option value="">Seleziona un utente...</option>' + users.map(u => '<option value="' + u.id + '">' + esc(u.cognome) + ' ' + esc(u.nome) + '</option>').join('');
-  const q = el('searchInput').value.trim().toLowerCase();
-  const results = el('searchResults');
-  if (q.length < 2) {
-    results.classList.remove('show');
-    results.innerHTML = '';
-    el('searchBox').classList.remove('open');
-    return;
+  // ---------- Toast ----------
+  function toast(msg, type='ok') {
+    const t = document.createElement('div');
+    t.className = 'toast ' + type;
+    t.textContent = msg;
+    el('toasts').appendChild(t);
+    setTimeout(() => t.classList.add('out'), 2500);
+    setTimeout(() => t.remove(), 2950);
   }
-  el('searchBox').classList.add('open');
-  const matches = db.users.filter(u => 
-    (u.nome + ' ' + u.cognome).toLowerCase().includes(q) ||
-    u.nome.toLowerCase().includes(q) ||
-    u.cognome.toLowerCase().includes(q)
-  ).slice(0, 8);
-  if (!matches.length) {
-    results.innerHTML = `<div class="sr-empty">Nessun utente trovato per "<b>${esc(q)}</b>"</div>`;
-  } else {
-    results.innerHTML = matches.map((u, i) => {
-      const name = esc(u.nome + ' ' + u.cognome);
-      const highlighted = name.replace(new RegExp(`(${esc(q)})`, 'gi'), '<mark>$1</mark>');
-      const lastMeas = u.misure && u.misure.length ? u.misure[u.misure.length - 1] : null;
-      return `<button class="sr-item ${i === selIdx ? 'sel' : ''}" data-id="${u.id}" role="option">
-        <span class="sr-av">${esc(iniziali(u))}</span>
-        <span class="sr-name">${highlighted}</span>
-        <span class="sr-meta">${lastMeas ? fmtDate(lastMeas.data) : 'Nessuna misurazione'}</span>
-      </button>`;
-    }).join('');
+
+  // ---------- Navigazione ----------
+  function renderCrumbs() {
+    const c = el('crumbs');
+    let html = `<button class="ck-home" data-go="home">Home</button>`;
+    const u = currentUser();
+    if (state.screen === 'user' || state.screen === 'meas' || state.screen === 'hist' || state.screen === 'charts') {
+      html += `<span class="sep">›</span><button class="ck-user" data-go="user">${esc(u ? u.nome + ' ' + u.cognome : 'Utente')}</button>`;
+    }
+    if (state.screen === 'meas') {
+      html += `<span class="sep">›</span><span class="cur">Nuova Misurazione</span>`;
+    }
+    if (state.screen === 'hist') {
+      html += `<span class="sep">›</span><span class="cur">Tabulato</span>`;
+    }
+    if (state.screen === 'charts') {
+      html += `<span class="sep">›</span><span class="cur">Grafici</span>`;
+    }
+    c.innerHTML = html;
+    c.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => go(b.dataset.go)));
   }
-  results.classList.add('show');
-  results.querySelectorAll('.sr-item').forEach(item => {
-    item.addEventListener('click', () => {
-      const u = findUser(item.dataset.id);
-      if (u) {
-        addToRecent(u.id);
-        go('user', u.id);
-      }
-    });
-  });
-}
 
-function addToRecent(userId) {
-  db.recent = db.recent.filter(id => id !== userId);
-  db.recent.unshift(userId);
-  db.recent = db.recent.slice(0, 5);
-  saveDB();
-  renderRecent();
-}
-
-function renderRecent() {
-  const row = el('recentRow');
-  if (!db.recent.length) { row.innerHTML = ''; return; }
-  const users = db.recent.map(findUser).filter(Boolean);
-  if (!users.length) { row.innerHTML = ''; return; }
-  row.innerHTML = '<span class="rc-label">Recenti</span>' + users.map(u => 
-    '<button class="rc" data-id="' + u.id + '"><i>' + esc(iniziali(u)) + '</i>' + esc(u.nome) + ' ' + esc(u.cognome) + '</button>'
-  ).join('');
-  row.querySelectorAll('.rc').forEach(b => b.addEventListener('click', () => go('user', b.dataset.id)));
-}
-
-function renderHomeStats() {
-  const total = db.users.length;
-  const totalMeas = db.users.reduce((s, u) => s + (u.misure ? u.misure.length : 0), 0);
-  el('homeStats').textContent = total + ' utenti registrati · ' + totalMeas + ' misurazioni totali';
-}
-
-// ---------- Scheda Utente ----------
-function renderUser() {
-  const u = currentUser();
-  if (!u) { go('home'); return; }
-  el('uAvatar').textContent = iniziali(u) || '—';
-  el('uName').textContent = `${u.nome} ${u.cognome}`;
-  const birth = u.nascita ? fmtDate(u.nascita) : '—';
-  const age = u.nascita ? ageAt(u.nascita, todayISO()) : null;
-  const sessoSym = u.sesso === 'M' ? ' ♂' : u.sesso === 'F' ? ' ♀' : '';
-  el('uMeta').textContent = `Nato il ${birth}${age !== null ? ' · ' + age + ' anni' + sessoSym : ''}`;
-  const misure = u.misure || [];
-  if (misure.length) {
-    const last = misure[misure.length - 1];
-    const days = Math.floor((new Date(todayISO()) - parseISO(last.data)) / 86400000);
-    el('uLast').innerHTML = `Ultima misurazione: <b>${fmtDate(last.data)}</b> <span class="delta">(${days === 0 ? 'oggi' : days + ' giorni fa'})</span>`;
-  } else {
-    el('uLast').textContent = 'Nessuna misurazione registrata';
+  function go(screen, userId) {
+    state.screen = screen;
+    if (userId !== undefined) state.userId = userId;
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    el('screen-' + screen).classList.add('active');
+    renderCrumbs();
+    if (screen === 'home') renderHome();
+    else if (screen === 'user') renderUser();
+    else if (screen === 'meas') renderMeas();
+    else if (screen === 'hist') renderHistory();
+    else if (screen === 'charts') renderCharts();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
-  el('histCount').textContent = misure.length;
-  renderHistory();
-}
 
-function renderHistory() {
-  const u = currentUser();
-  if (!u) return;
-  const misure = [...(u.misure || [])].sort((a, b) => {
-    let va, vb;
-    if (sortCol === 'data') { va = a.data; vb = b.data; }
-    else if (sortCol === 'anni') { va = ageAt(u.nascita, a.data); vb = ageAt(u.nascita, b.data); }
-    else { va = a[sortCol]; vb = b[sortCol]; }
-    if (va === undefined || va === null) va = sortDesc ? -Infinity : Infinity;
-    if (vb === undefined || vb === null) vb = sortDesc ? -Infinity : Infinity;
-    if (va < vb) return sortDesc ? 1 : -1;
-    if (va > vb) return sortDesc ? -1 : 1;
-    return 0;
-  });
-  const tbody = el('histBody');
-  if (!misure.length) {
-    tbody.innerHTML = '<tr><td colspan="14" class="empty">Nessuna misurazione registrata. Aggiungi la prima misurazione qui sopra.</td></tr>';
-    return;
-  }
-  tbody.innerHTML = misure.map(m => {
-    const anni = ageAt(u.nascita, m.data);
-    return '<tr data-id="' + m.id + '" class="' + (m.id === justAdded ? 'flash' : '') + '">' +
-      '<td class="c-date">' + fmtDate(m.data) + '</td>' +
-      '<td class="num">' + (anni !== null ? anni : '—') + '</td>' +
-      '<td class="num">' + (m.peso !== undefined && m.peso !== null ? fmtNum(m.peso, 1) : '<span class="nd">—</span>') + '</td>' +
-      '<td class="num">' + (m.altezza !== undefined && m.altezza !== null ? fmtNum(m.altezza, 1) : '<span class="nd">—</span>') + '</td>' +
-      '<td class="num">' + (m.fm !== undefined && m.fm !== null ? fmtNum(m.fm, 1) : '<span class="nd">—</span>') + '</td>' +
-      '<td class="num">' + (m.ffm !== undefined && m.ffm !== null ? fmtNum(m.ffm, 1) : '<span class="nd">—</span>') + '</td>' +
-      '<td class="num">' + (m.viscerale !== undefined && m.viscerale !== null ? fmtNum(m.viscerale, 1) : '<span class="nd">—</span>') + '</td>' +
-      '<td class="num">' + (m.bmi !== undefined && m.bmi !== null ? fmtNum(m.bmi, 1) : '<span class="nd">—</span>') + '</td>' +
-      '<td class="num">' + (m.tdee !== undefined && m.tdee !== null ? fmtNum(m.tdee, 0) : '<span class="nd">—</span>') + '</td>' +
-      '<td class="num">' + (m.etaBio !== undefined && m.etaBio !== null ? fmtNum(m.etaBio, 0) : '<span class="nd">—</span>') + '</td>' +
-      '<td class="num">' + (m.idratazione !== undefined && m.idratazione !== null ? fmtNum(m.idratazione, 1) : '<span class="nd">—</span>') + '</td>' +
-      '<td class="num">' + (m.fmTronco !== undefined && m.fmTronco !== null ? fmtNum(m.fmTronco, 1) : '<span class="nd">—</span>') + '</td>' +
-      '<td class="c-note">' + esc(m.note || '') + '</td>' +
-      '<td class="c-act"><button class="row-edit" data-edit="' + m.id + '" title="Modifica misurazione">' + ICON.edit + '</button><button class="row-del" data-del="' + m.id + '" title="Elimina misurazione">' + ICON.trash + '</button></td>' +
-    '</tr>';
-  }).join('');
-  tbody.querySelectorAll('[data-del]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      if (pendingDel === btn.dataset.del) {
-        deleteMeasurement(btn.dataset.del);
-        pendingDel = null;
-      } else {
-        pendingDel = btn.dataset.del;
-        btn.classList.add('confirm');
-        btn.textContent = 'Conferma?';
-        setTimeout(() => { pendingDel = null; btn.classList.remove('confirm'); btn.innerHTML = ICON.trash; }, 3000);
-      }
-    });
-  });
-  tbody.querySelectorAll('[data-edit]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      editMeasurement(btn.dataset.edit);
-    });
-  });
-  if (justAdded) {
-    setTimeout(() => { justAdded = null; }, 2000);
-  }
-}
-
-function renderMeas() {
-  const u = currentUser();
-  if (!u) return;
-  updateAgeField();
-}
-
-function deleteMeasurement(id) {
-  const u = currentUser();
-  if (!u) return;
-  u.misure = (u.misure || []).filter(m => m.id !== id);
-  saveDB();
-  renderUser();
-  toast('Misurazione eliminata');
-}
-
-function editMeasurement(id) {
-  const u = currentUser();
-  if (!u) return;
-  const m = (u.misure || []).find(x => x.id === id);
-  if (!m) return;
-  el('mData').value = m.data;
-  el('f_peso').value = m.peso !== undefined && m.peso !== null ? m.peso : '';
-  el('f_altezza').value = m.altezza !== undefined && m.altezza !== null ? m.altezza : '';
-  el('f_fm').value = m.fm !== undefined && m.fm !== null ? m.fm : '';
-  el('f_ffm').value = m.ffm !== undefined && m.ffm !== null ? m.ffm : '';
-  el('f_viscerale').value = m.viscerale !== undefined && m.viscerale !== null ? m.viscerale : '';
-  el('f_bmi').value = m.bmi !== undefined && m.bmi !== null ? m.bmi : '';
-  el('f_tdee').value = m.tdee !== undefined && m.tdee !== null ? m.tdee : '';
-  el('f_etaBio').value = m.etaBio !== undefined && m.etaBio !== null ? m.etaBio : '';
-  el('f_idratazione').value = m.idratazione !== undefined && m.idratazione !== null ? m.idratazione : '';
-  el('f_fmTronco').value = m.fmTronco !== undefined && m.fmTronco !== null ? m.fmTronco : '';
-  el('f_note').value = m.note || '';
-  updateAgeField();
-  pendingEditId = id;
-  toast('Misurazione caricata nel form. Modifica e registra per salvare.');
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-function fillRandomData() {
-  const rnd = (min, max, dec) => {
-    const v = min + Math.random() * (max - min);
-    return Number(v.toFixed(dec));
-  };
-  const u = currentUser();
-  const anni = u && u.nascita ? (ageAt(u.nascita, el('mData').value) || 30) : 30;
-  const altezza = rnd(150, 200, 1);
-  const peso = rnd(50, 120, 1);
-  const fm = rnd(8, 35, 1);
-  const ffm = Math.round(peso * (1 - fm / 100) * 10) / 10;
-  const viscerale = rnd(1, 15, 1);
-  const bmi = Math.round(peso / Math.pow(altezza / 100, 2) * 10) / 10;
-  const tdee = rnd(1500, 3500, 0);
-  const etaBio = Math.max(18, anni + rnd(-5, 10, 0));
-  const idratazione = rnd(45, 70, 1);
-  const fmTronco = Math.max(5, fm + rnd(-3, 3, 1));
-  el('f_peso').value = peso;
-  el('f_altezza').value = altezza;
-  el('f_fm').value = fm;
-  el('f_ffm').value = ffm;
-  el('f_viscerale').value = viscerale;
-  el('f_bmi').value = bmi;
-  el('f_tdee').value = tdee;
-  el('f_etaBio').value = etaBio;
-  el('f_idratazione').value = idratazione;
-  el('f_fmTronco').value = fmTronco;
-  updateAgeField();
-}
-
-// ---------- Nuovo Utente ----------
-function openNewUser() {
-  el('ovlNew').classList.add('show');
-  el('nuNome').focus();
-}
-
-function closeModals() {
-  document.querySelectorAll('.overlay').forEach(o => o.classList.remove('show'));
-}
-
-let newUserSesso = null, editUserSesso = null;
-
-function createUser(e) {
-  e.preventDefault();
-  const nome = el('nuNome').value.trim();
-  const cognome = el('nuCognome').value.trim();
-  const nascita = el('nuNascita').value;
-  let valid = true;
-  if (!nome) { el('errNome').hidden = false; valid = false; } else { el('errNome').hidden = true; }
-  if (!cognome) { el('errCognome').hidden = false; valid = false; } else { el('errCognome').hidden = true; }
-  if (!newUserSesso) { el('errSesso').hidden = false; valid = false; } else { el('errSesso').hidden = true; }
-  if (!nascita || parseISO(nascita) > new Date()) { el('errNascita').hidden = false; valid = false; } else { el('errNascita').hidden = true; }
-  if (!valid) return;
-  const user = { id: uid(), nome, cognome, sesso: newUserSesso, nascita, misure: [] };
-  db.users.push(user);
-  saveDB();
-  closeModals();
-  el('newUserForm').reset();
-  newUserSesso = null;
-  toast(`Utente ${nome} ${cognome} creato con successo`);
-  go('user', user.id);
-}
-
-function openEditUser() {
-  const u = currentUser();
-  if (!u) return;
-  el('edNome').value = u.nome;
-  el('edCognome').value = u.cognome;
-  el('edNascita').value = u.nascita;
-  editUserSesso = u.sesso || null;
-  updateEditSessoButtons();
-  el('ovlEdit').classList.add('show');
-}
-
-function updateEditSessoButtons() {
-  el('edBtnMale').classList.toggle('btn-primary', editUserSesso === 'M');
-  el('edBtnMale').classList.toggle('btn-ghost', editUserSesso !== 'M');
-  el('edBtnFemale').classList.toggle('btn-primary', editUserSesso === 'F');
-  el('edBtnFemale').classList.toggle('btn-ghost', editUserSesso !== 'F');
-}
-
-function saveEditUser(e) {
-  e.preventDefault();
-  const u = currentUser();
-  if (!u) return;
-  const nome = el('edNome').value.trim();
-  const cognome = el('edCognome').value.trim();
-  const nascita = el('edNascita').value;
-  if (!nome || !cognome || !nascita || !editUserSesso) { toast('Compila tutti i campi', 'err'); return; }
-  u.nome = nome;
-  u.cognome = cognome;
-  u.sesso = editUserSesso;
-  u.nascita = nascita;
-  saveDB();
-  closeModals();
-  renderUser();
-  toast('Anagrafica aggiornata con successo');
-}
-
-// ---------- Misurazioni ----------
-function submitMeasurement(e) {
-  e.preventDefault();
-  const u = currentUser();
-  if (!u) return;
-  const data = el('mData').value;
-  if (!data) { toast('Inserisci una data valida', 'err'); return; }
-  const fields = ['peso','altezza','fm','ffm','viscerale','bmi','tdee','etaBio','idratazione','fmTronco'];
-  let hasValue = false;
-  const vals = {};
-  fields.forEach(f => {
-    const v = el('f_' + f).value;
-    if (v !== '' && !isNaN(Number(v))) { vals[f] = Number(v); hasValue = true; }
-  });
-  const note = el('f_note').value.trim();
-  if (!hasValue) { toast('Inserisci almeno un valore numerico', 'warn'); return; }
-  if (!u.misure) u.misure = [];
-  if (pendingEditId) {
-    const m = u.misure.find(x => x.id === pendingEditId);
-    if (m) {
-      m.data = data;
-      fields.forEach(f => { if (vals[f] !== undefined) m[f] = vals[f]; else delete m[f]; });
-      m.note = note || undefined;
-      justAdded = m.id;
-      pendingEditId = null;
-      saveDB();
-      el('measForm').reset();
-      el('mData').value = todayISO();
-      updateAgeField();
-      renderUser();
-      toast('Misurazione aggiornata con successo');
+  // ---------- Home ----------
+  function renderHome() {
+    renderHomeStats();
+    renderRecent();
+    const sel = el('userSelect');
+    const sorted = users.slice().sort((a, b) => a.cognome.localeCompare(b.cognome) || a.nome.localeCompare(b.nome));
+    sel.innerHTML = '<option value="">Seleziona un utente...</option>' + sorted.map(u => '<option value="' + u.id + '">' + esc(u.cognome) + ' ' + esc(u.nome) + '</option>').join('');
+    const q = el('searchInput').value.trim().toLowerCase();
+    const results = el('searchResults');
+    if (q.length < 2) {
+      results.classList.remove('show');
+      results.innerHTML = '';
+      el('searchBox').classList.remove('open');
       return;
     }
-    pendingEditId = null;
-  }
-  const m = { id: uid(), data };
-  Object.assign(m, vals);
-  if (note) m.note = note;
-  u.misure.push(m);
-  justAdded = m.id;
-  saveDB();
-  el('measForm').reset();
-  el('mData').value = todayISO();
-  updateAgeField();
-  renderUser();
-  toast('Misurazione registrata con successo');
-}
-
-function updateAgeField() {
-  const u = currentUser();
-  const data = el('mData').value;
-  if (!u || !data) { el('mAnni').value = '—'; return; }
-  const anni = ageAt(u.nascita, data);
-  el('mAnni').value = anni !== null ? anni + ' anni' : '—';
-}
-
-// ---------- Grafici ----------
-function renderCharts() {
-  const u = currentUser();
-  if (!u) { go('home'); return; }
-  renderChips();
-  renderChartGrid();
-}
-
-function renderChips() {
-  const list = el('chipList');
-  list.innerHTML = Object.keys(PARAMS).map(key => {
-    const p = PARAMS[key];
-    const on = prefs.charts.includes(key);
-    const off = !on && prefs.charts.length >= 4;
-    return '<button type="button" class="chip ' + (on ? 'on' : '') + ' ' + (off ? 'off' : '') + '" data-key="' + key + '">' +
-      '<svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 7"/></svg>' +
-      p.label +
-    '</button>';
-  }).join('');
-  el('chipCount').textContent = prefs.charts.length + '/4';
-  list.querySelectorAll('.chip').forEach(chip => {
-    chip.addEventListener('click', () => {
-      const key = chip.dataset.key;
-      const idx = prefs.charts.indexOf(key);
-      if (idx >= 0) {
-        prefs.charts.splice(idx, 1);
-      } else if (prefs.charts.length < 4) {
-        prefs.charts.push(key);
-      } else {
-        chip.classList.add('shake');
-        setTimeout(() => chip.classList.remove('shake'), 400);
-        return;
-      }
-      savePrefs();
-      renderChips();
-      renderChartGrid();
-    });
-  });
-}
-
-function renderChartGrid() {
-  const u = currentUser();
-  if (!u) return;
-  const grid = el('chartsGrid');
-  const misure = (u.misure || []).slice().sort((a, b) => a.data.localeCompare(b.data));
-  if (!misure.length) {
-    grid.innerHTML = '<div class="panel"><p style="color:var(--muted);text-align:center;padding:20px;">Nessuna misurazione disponibile per i grafici.</p></div>';
-    return;
-  }
-  const solo = prefs.charts.length === 1;
-  grid.className = solo ? 'solo' : '';
-  grid.innerHTML = prefs.charts.map((key, i) => {
-    const p = PARAMS[key];
-    const mode = prefs.modes[key] || 'line';
-    const zoom = prefs.zoom ? prefs.zoom[key] || 1 : 1;
-    const showAvg = prefs.avg && prefs.avg[key] ? true : false;
-    const values = misure.map(m => m[key]).filter(v => v !== undefined && v !== null);
-    const last = values.length ? values[values.length - 1] : null;
-    const prev = values.length > 1 ? values[values.length - 2] : null;
-    const delta = last !== null && prev !== null ? last - prev : null;
-    return '<div class="chart-card" style="animation-delay:' + (i * 0.06) + 's">' +
-      '<div class="ch-head">' +
-        '<span class="ch-title">' + p.label + '<span>' + p.unit + '</span></span>' +
-        '<span class="ch-meta">' +
-          '<b>' + (last !== null ? fmtNum(last, p.dec) : '—') + '</b>' +
-          (delta !== null ? '<span class="delta">' + (delta > 0 ? '+' : '') + fmtNum(delta, p.dec) + '</span>' : '') +
-        '</span>' +
-        '<span class="ch-tools">' +
-          '<button class="avg-btn ' + (showAvg ? 'on' : '') + '" data-avg="' + key + '" title="Mostra media mobile">Media</button>' +
-          '<button class="mode-btn ' + (mode === 'line' ? 'on' : '') + '" data-mode="line" data-key="' + key + '" title="Grafico a linee">' + ICON.line + '</button>' +
-          '<button class="mode-btn ' + (mode === 'bar' ? 'on' : '') + '" data-mode="bar" data-key="' + key + '" title="Grafico a barre">' + ICON.bar + '</button>' +
-          '<button class="zoom-btn" data-zoom="in" data-key="' + key + '" title="Zoom in">' + ICON.zoomIn + '</button>' +
-          '<button class="zoom-btn" data-zoom="out" data-key="' + key + '" title="Zoom out">' + ICON.zoomOut + '</button>' +
-        '</span>' +
-      '</div>' +
-      '<div class="ch-scroll" id="scroll-' + key + '">' +
-        '<div class="ch-canvas-wrap" id="wrap-' + key + '">' +
-          '<div class="ch-body"><canvas id="chart-' + key + '"></canvas></div>' +
-        '</div>' +
-      '</div>' +
-    '</div>';
-  }).join('');
-  grid.querySelectorAll('.mode-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const key = btn.dataset.key;
-      prefs.modes[key] = btn.dataset.mode;
-      savePrefs();
-      renderChartGrid();
-    });
-  });
-  grid.querySelectorAll('.zoom-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const key = btn.dataset.key;
-      const dir = btn.dataset.zoom;
-      if (!prefs.zoom) prefs.zoom = {};
-      const cur = prefs.zoom[key] || 1;
-      const next = dir === 'in' ? Math.min(cur * 1.5, 10) : Math.max(cur / 1.5, 1);
-      prefs.zoom[key] = next;
-      savePrefs();
-      renderChartGrid();
-    });
-  });
-  grid.querySelectorAll('.avg-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const key = btn.dataset.avg;
-      if (!prefs.avg) prefs.avg = {};
-      prefs.avg[key] = !prefs.avg[key];
-      savePrefs();
-      renderChartGrid();
-    });
-  });
-  prefs.charts.forEach(key => drawChart(key, misure));
-}
-
-function drawChart(key, misure) {
-  const canvas = el('chart-' + key);
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const dpr = window.devicePixelRatio || 1;
-  const wrap = el('wrap-' + key);
-  const scroll = el('scroll-' + key);
-  const zoom = prefs.zoom && prefs.zoom[key] ? prefs.zoom[key] : 1;
-  const showAvg = prefs.avg && prefs.avg[key] ? true : false;
-  const baseW = scroll.clientWidth || 600;
-  const W = Math.max(baseW * zoom, baseW);
-  const H = 280;
-  wrap.style.width = W + 'px';
-  canvas.width = W * dpr;
-  canvas.height = H * dpr;
-  canvas.style.width = W + 'px';
-  canvas.style.height = H + 'px';
-  ctx.scale(dpr, dpr);
-  const p = PARAMS[key];
-  const mode = prefs.modes[key] || 'line';
-  const data = misure.map(m => ({ x: m.data, y: m[key] })).filter(d => d.y !== undefined && d.y !== null);
-  if (data.length < 2) {
-    ctx.fillStyle = '#7c7b88';
-    ctx.font = '14px ' + FONT;
-    ctx.textAlign = 'center';
-    ctx.fillText('Servono almeno 2 misurazioni', W / 2, H / 2);
-    return;
-  }
-  const padL = 50, padR = 20, padT = 20, padB = 40;
-  const chartW = W - padL - padR, chartH = H - padT - padB;
-  const minY = Math.min(...data.map(d => d.y));
-  const maxY = Math.max(...data.map(d => d.y));
-  const rangeY = maxY - minY || 1;
-  const yMin = minY - rangeY * 0.1;
-  const yMax = maxY + rangeY * 0.1;
-  const xMin = new Date(data[0].x).getTime();
-  const xMax = new Date(data[data.length - 1].x).getTime();
-  const rangeX = xMax - xMin || 1;
-  const xScale = x => padL + ((new Date(x).getTime() - xMin) / rangeX) * chartW;
-  const yScale = y => padT + chartH - ((y - yMin) / (yMax - yMin)) * chartH;
-  // Grid
-  ctx.strokeStyle = '#34343f';
-  ctx.lineWidth = 1;
-  for (let i = 0; i <= 4; i++) {
-    const y = padT + (chartH / 4) * i;
-    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
-  }
-  // Y labels
-  ctx.fillStyle = '#7c7b88';
-  ctx.font = '11px ' + FONT;
-  ctx.textAlign = 'right';
-  for (let i = 0; i <= 4; i++) {
-    const val = yMax - ((yMax - yMin) / 4) * i;
-    ctx.fillText(fmtNum(val, p.dec), padL - 8, padT + (chartH / 4) * i + 4);
-  }
-  // X labels
-  ctx.textAlign = 'center';
-  const step = Math.ceil(data.length / 6);
-  data.forEach((d, i) => {
-    if (i % step === 0 || i === data.length - 1) {
-      ctx.fillText(fmtShort(d.x), xScale(d.x), H - padB + 18);
+    el('searchBox').classList.add('open');
+    const matches = users.filter(u => 
+      (u.nome + ' ' + u.cognome).toLowerCase().includes(q) ||
+      u.nome.toLowerCase().includes(q) ||
+      u.cognome.toLowerCase().includes(q)
+    ).slice(0, 8);
+    if (!matches.length) {
+      results.innerHTML = `<div class="sr-empty">Nessun utente trovato per "<b>${esc(q)}</b>"</div>`;
+    } else {
+      results.innerHTML = matches.map((u, i) => {
+        const name = esc(u.nome + ' ' + u.cognome);
+        const highlighted = name.replace(new RegExp(`(${esc(q)})`, 'gi'), '<mark>$1</mark>');
+        const lastMeas = u.misure && u.misure.length ? u.misure[u.misure.length - 1] : null;
+        return `<button class="sr-item ${i === selIdx ? 'sel' : ''}" data-id="${u.id}" role="option">
+          <span class="sr-av">${esc(iniziali(u))}</span>
+          <span class="sr-name">${highlighted}</span>
+          <span class="sr-meta">${lastMeas ? fmtDate(lastMeas.data) : 'Nessuna misurazione'}</span>
+        </button>`;
+      }).join('');
     }
-  });
-  // Data
-  const color = COLORS[prefs.charts.indexOf(key) % COLORS.length];
-  if (mode === 'bar') {
-    const barW = Math.min(30, chartW / data.length * 0.6);
-    data.forEach(d => {
-      const x = xScale(d.x);
-      const y = yScale(d.y);
-      ctx.fillStyle = color + '88';
-      ctx.fillRect(x - barW / 2, y, barW, padT + chartH - y);
-    });
-  } else {
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2.5;
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    data.forEach((d, i) => {
-      const x = xScale(d.x), y = yScale(d.y);
-      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
-    // Area fill
-    ctx.lineTo(xScale(data[data.length - 1].x), padT + chartH);
-    ctx.lineTo(xScale(data[0].x), padT + chartH);
-    ctx.closePath();
-    ctx.fillStyle = color + '18';
-    ctx.fill();
-    // Points
-    data.forEach(d => {
-      ctx.beginPath();
-      ctx.arc(xScale(d.x), yScale(d.y), 4, 0, Math.PI * 2);
-      ctx.fillStyle = color;
-      ctx.fill();
-      ctx.strokeStyle = '#1e1e24';
-      ctx.lineWidth = 2;
-      ctx.stroke();
+    results.classList.add('show');
+    results.querySelectorAll('.sr-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const u = findUser(item.dataset.id);
+        if (u) {
+          addToRecent(u.id);
+          go('user', u.id);
+        }
+      });
     });
   }
-  // Media mobile
-  if (showAvg && data.length >= 3) {
-    const avgData = [];
-    for (let i = 0; i < data.length; i++) {
-      const start = Math.max(0, i - 2);
-      const slice = data.slice(start, i + 1);
-      const avg = slice.reduce((s, d) => s + d.y, 0) / slice.length;
-      avgData.push({ x: data[i].x, y: avg });
+
+  function addToRecent(userId) {
+    let recent = [];
+    try { recent = JSON.parse(localStorage.getItem('phoenixFitRecent')) || []; } catch(e){}
+    recent = recent.filter(id => id !== userId);
+    recent.unshift(userId);
+    recent = recent.slice(0, 5);
+    try { localStorage.setItem('phoenixFitRecent', JSON.stringify(recent)); } catch(e){}
+    renderRecent();
+  }
+
+  function renderRecent() {
+    const row = el('recentRow');
+    let recent = [];
+    try { recent = JSON.parse(localStorage.getItem('phoenixFitRecent')) || []; } catch(e){}
+    if (!recent.length) { row.innerHTML = ''; return; }
+    const recentUsers = recent.map(findUser).filter(Boolean);
+    if (!recentUsers.length) { row.innerHTML = ''; return; }
+    row.innerHTML = '<span class="rc-label">Recenti</span>' + recentUsers.map(u => 
+      '<button class="rc" data-id="' + u.id + '"><i>' + esc(iniziali(u)) + '</i>' + esc(u.nome) + ' ' + esc(u.cognome) + '</button>'
+    ).join('');
+    row.querySelectorAll('.rc').forEach(b => b.addEventListener('click', () => go('user', b.dataset.id)));
+  }
+
+  function renderHomeStats() {
+    const total = users.length;
+    const totalMeas = users.reduce((s, u) => s + (u.misure ? u.misure.length : 0), 0);
+    el('homeStats').textContent = total + ' utenti registrati · ' + totalMeas + ' misurazioni totali';
+  }
+
+  // ---------- Scheda Utente ----------
+  function currentUser() {
+    return users.find(u => u.id === state.userId);
+  }
+
+  function renderUser() {
+    const u = currentUser();
+    if (!u) { go('home'); return; }
+    el('uAvatar').textContent = iniziali(u) || '—';
+    el('uName').textContent = `${u.nome} ${u.cognome}`;
+    const birth = u.nascita ? fmtDate(u.nascita) : '—';
+    const age = u.nascita ? ageAt(u.nascita, todayISO()) : null;
+    const sessoSym = u.sesso === 'M' ? ' ♂' : u.sesso === 'F' ? ' ♀' : '';
+    el('uMeta').textContent = `Nato il ${birth}${age !== null ? ' · ' + age + ' anni' + sessoSym : ''}`;
+    const misure = u.misure || [];
+    if (misure.length) {
+      const last = misure[misure.length - 1];
+      const days = Math.floor((new Date(todayISO()) - parseISO(last.data)) / 86400000);
+      el('uLast').innerHTML = `Ultima misurazione: <b>${fmtDate(last.data)}</b> <span class="delta">(${days === 0 ? 'oggi' : days + ' giorni fa'})</span>`;
+    } else {
+      el('uLast').textContent = 'Nessuna misurazione registrata';
     }
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([5, 5]);
-    ctx.beginPath();
-    avgData.forEach((d, i) => {
-      const x = xScale(d.x), y = yScale(d.y);
-      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
-    ctx.setLineDash([]);
+    el('histCount').textContent = misure.length;
+    renderHistory();
   }
-}
 
-// ---------- Elimina Utente ----------
-function openDeleteUser() {
-  const u = currentUser();
-  if (!u) return;
-  el('delText').innerHTML = `Stai per eliminare <b>${esc(u.nome)} ${esc(u.cognome)}</b> e tutte le sue misurazioni. Questa azione è irreversibile.`;
-  el('ovlDel').classList.add('show');
-}
-
-function confirmDeleteUser() {
-  const u = currentUser();
-  if (!u) return;
-  db.users = db.users.filter(x => x.id !== u.id);
-  db.recent = db.recent.filter(id => id !== u.id);
-  saveDB();
-  closeModals();
-  toast('Atleta eliminato definitivamente', 'warn');
-  go('home');
-}
-
-// ---------- Event Listeners ----------
-function init() {
-  el('mData').value = todayISO();
-  updateAgeField();
-  renderRecent();
-  renderHomeStats();
-  // Brand
-  el('brandBtn').addEventListener('click', () => go('home'));
-  el('brandBtn').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go('home'); } });
-  // Search
-  let searchTimeout;
-  el('searchInput').addEventListener('input', () => {
-    clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(() => { selIdx = -1; renderHome(); }, 150);
-  });
-  el('searchInput').addEventListener('keydown', e => {
-    const items = el('searchResults').querySelectorAll('.sr-item');
-    if (e.key === 'ArrowDown') { e.preventDefault(); selIdx = Math.min(selIdx + 1, items.length - 1); items.forEach((it, i) => it.classList.toggle('sel', i === selIdx)); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); selIdx = Math.max(selIdx - 1, 0); items.forEach((it, i) => it.classList.toggle('sel', i === selIdx)); }
-    else if (e.key === 'Enter' && selIdx >= 0 && items[selIdx]) { items[selIdx].click(); }
-  });
-  el('searchClear').addEventListener('click', () => { el('searchInput').value = ''; renderHome(); el('searchInput').focus(); });
-  document.addEventListener('click', e => { if (!el('searchBox').contains(e.target)) { el('searchResults').classList.remove('show'); el('searchBox').classList.remove('open'); } });
-  // User select dropdown
-  el('userSelect').addEventListener('change', () => {
-    const id = el('userSelect').value;
-    if (id) { addToRecent(id); go('user', id); }
-  });
-  // New user
-  el('btnNewUser').addEventListener('click', openNewUser);
-  el('newUserForm').addEventListener('submit', createUser);
-  el('btnMale').addEventListener('click', () => { newUserSesso = 'M'; el('btnMale').classList.add('btn-primary'); el('btnMale').classList.remove('btn-ghost'); el('btnFemale').classList.add('btn-ghost'); el('btnFemale').classList.remove('btn-primary'); el('errSesso').hidden = true; });
-  el('btnFemale').addEventListener('click', () => { newUserSesso = 'F'; el('btnFemale').classList.add('btn-primary'); el('btnFemale').classList.remove('btn-ghost'); el('btnMale').classList.add('btn-ghost'); el('btnMale').classList.remove('btn-primary'); el('errSesso').hidden = true; });
-  // Edit user
-  el('btnEditUser').addEventListener('click', openEditUser);
-  el('editUserForm').addEventListener('submit', saveEditUser);
-  el('edBtnMale').addEventListener('click', () => { editUserSesso = 'M'; updateEditSessoButtons(); });
-  el('edBtnFemale').addEventListener('click', () => { editUserSesso = 'F'; updateEditSessoButtons(); });
-  // Back buttons
-
-  el('btnBackUser').addEventListener('click', () => go('user'));
-  el('btnBackUser2').addEventListener('click', () => go('user'));
-  el('btnBackUser3').addEventListener('click', () => go('user'));
-  // Charts
-  el('btnCharts').addEventListener('click', () => go('charts'));
-  el('btnGoHist').addEventListener('click', () => go('hist'));
-  el('btnGoMeas').addEventListener('click', () => go('meas'));
-  el('btnPrint').addEventListener('click', () => {
+  function renderHistory() {
     const u = currentUser();
     if (!u) return;
+    const misure = [...(u.misure || [])].sort((a, b) => {
+      let va, vb;
+      if (sortCol === 'data') { va = a.data; vb = b.data; }
+      else if (sortCol === 'anni') { va = ageAt(u.nascita, a.data); vb = ageAt(u.nascita, b.data); }
+      else { va = a[sortCol]; vb = b[sortCol]; }
+      if (va === undefined || va === null) va = sortDesc ? -Infinity : Infinity;
+      if (vb === undefined || vb === null) vb = sortDesc ? -Infinity : Infinity;
+      if (va < vb) return sortDesc ? 1 : -1;
+      if (va > vb) return sortDesc ? -1 : 1;
+      return 0;
+    });
+    const tbody = el('histBody');
+    if (!misure.length) {
+      tbody.innerHTML = '<tr><td colspan="14" class="empty">Nessuna misurazione registrata. Aggiungi la prima misurazione qui sopra.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = misure.map(m => {
+      const anni = ageAt(u.nascita, m.data);
+      return '<tr data-id="' + m.id + '" class="' + (m.id === justAdded ? 'flash' : '') + '">' +
+        '<td class="c-date">' + fmtDate(m.data) + '</td>' +
+        '<td class="num">' + (anni !== null ? anni : '—') + '</td>' +
+        '<td class="num">' + (m.peso !== undefined && m.peso !== null ? fmtNum(m.peso, 1) : '<span class="nd">—</span>') + '</td>' +
+        '<td class="num">' + (m.altezza !== undefined && m.altezza !== null ? fmtNum(m.altezza, 1) : '<span class="nd">—</span>') + '</td>' +
+        '<td class="num">' + (m.fm !== undefined && m.fm !== null ? fmtNum(m.fm, 1) : '<span class="nd">—</span>') + '</td>' +
+        '<td class="num">' + (m.ffm !== undefined && m.ffm !== null ? fmtNum(m.ffm, 1) : '<span class="nd">—</span>') + '</td>' +
+        '<td class="num">' + (m.viscerale !== undefined && m.viscerale !== null ? fmtNum(m.viscerale, 1) : '<span class="nd">—</span>') + '</td>' +
+        '<td class="num">' + (m.bmi !== undefined && m.bmi !== null ? fmtNum(m.bmi, 1) : '<span class="nd">—</span>') + '</td>' +
+        '<td class="num">' + (m.tdee !== undefined && m.tdee !== null ? fmtNum(m.tdee, 0) : '<span class="nd">—</span>') + '</td>' +
+        '<td class="num">' + (m.etaBio !== undefined && m.etaBio !== null ? fmtNum(m.etaBio, 0) : '<span class="nd">—</span>') + '</td>' +
+        '<td class="num">' + (m.idratazione !== undefined && m.idratazione !== null ? fmtNum(m.idratazione, 1) : '<span class="nd">—</span>') + '</td>' +
+        '<td class="num">' + (m.fmTronco !== undefined && m.fmTronco !== null ? fmtNum(m.fmTronco, 1) : '<span class="nd">—</span>') + '</td>' +
+        '<td class="c-note">' + esc(m.note || '') + '</td>' +
+        '<td class="c-act"><button class="row-edit" data-edit="' + m.id + '" title="Modifica misurazione">' + ICON.edit + '</button><button class="row-del" data-del="' + m.id + '" title="Elimina misurazione">' + ICON.trash + '</button></td>' +
+      '</tr>';
+    }).join('');
+    tbody.querySelectorAll('[data-del]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (pendingDel === btn.dataset.del) {
+          deleteMeasurement(btn.dataset.del);
+          pendingDel = null;
+        } else {
+          pendingDel = btn.dataset.del;
+          btn.classList.add('confirm');
+          btn.textContent = 'Conferma?';
+          setTimeout(() => { pendingDel = null; btn.classList.remove('confirm'); btn.innerHTML = ICON.trash; }, 3000);
+        }
+      });
+    });
+    tbody.querySelectorAll('[data-edit]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        editMeasurement(btn.dataset.edit);
+      });
+    });
+    if (justAdded) {
+      setTimeout(() => { justAdded = null; }, 2000);
+    }
+  }
+
+  function renderMeas() {
+    const u = currentUser();
+    if (!u) return;
+    updateAgeField();
+  }
+
+  async function deleteMeasurement(id) {
+    const u = currentUser();
+    if (!u) return;
+    u.misure = (u.misure || []).filter(m => m.id !== id);
+    await saveUserToFirestore(u);
+    renderUser();
+    toast('Misurazione eliminata');
+  }
+
+  function editMeasurement(id) {
+    const u = currentUser();
+    if (!u) return;
+    const m = (u.misure || []).find(x => x.id === id);
+    if (!m) return;
+    el('mData').value = m.data;
+    el('f_peso').value = m.peso !== undefined && m.peso !== null ? m.peso : '';
+    el('f_altezza').value = m.altezza !== undefined && m.altezza !== null ? m.altezza : '';
+    el('f_fm').value = m.fm !== undefined && m.fm !== null ? m.fm : '';
+    el('f_ffm').value = m.ffm !== undefined && m.ffm !== null ? m.ffm : '';
+    el('f_viscerale').value = m.viscerale !== undefined && m.viscerale !== null ? m.viscerale : '';
+    el('f_bmi').value = m.bmi !== undefined && m.bmi !== null ? m.bmi : '';
+    el('f_tdee').value = m.tdee !== undefined && m.tdee !== null ? m.tdee : '';
+    el('f_etaBio').value = m.etaBio !== undefined && m.etaBio !== null ? m.etaBio : '';
+    el('f_idratazione').value = m.idratazione !== undefined && m.idratazione !== null ? m.idratazione : '';
+    el('f_fmTronco').value = m.fmTronco !== undefined && m.fmTronco !== null ? m.fmTronco : '';
+    el('f_note').value = m.note || '';
+    updateAgeField();
+    pendingEditId = id;
+    toast('Misurazione caricata nel form. Modifica e registra per salvare.');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function fillRandomData() {
+    const rnd = (min, max, dec) => {
+      const v = min + Math.random() * (max - min);
+      return Number(v.toFixed(dec));
+    };
+    const u = currentUser();
+    const anni = u && u.nascita ? (ageAt(u.nascita, el('mData').value) || 30) : 30;
+    const altezza = rnd(150, 200, 1);
+    const peso = rnd(50, 120, 1);
+    const fm = rnd(8, 35, 1);
+    const ffm = Math.round(peso * (1 - fm / 100) * 10) / 10;
+    const viscerale = rnd(1, 15, 1);
+    const bmi = Math.round(peso / Math.pow(altezza / 100, 2) * 10) / 10;
+    const tdee = rnd(1500, 3500, 0);
+    const etaBio = Math.max(18, anni + rnd(-5, 10, 0));
+    const idratazione = rnd(45, 70, 1);
+    const fmTronco = Math.max(5, fm + rnd(-3, 3, 1));
+    el('f_peso').value = peso;
+    el('f_altezza').value = altezza;
+    el('f_fm').value = fm;
+    el('f_ffm').value = ffm;
+    el('f_viscerale').value = viscerale;
+    el('f_bmi').value = bmi;
+    el('f_tdee').value = tdee;
+    el('f_etaBio').value = etaBio;
+    el('f_idratazione').value = idratazione;
+    el('f_fmTronco').value = fmTronco;
+    updateAgeField();
+  }
+
+  // ---------- Nuovo Utente ----------
+  function openNewUser() {
+    el('ovlNew').classList.add('show');
+    el('nuNome').focus();
+  }
+
+  function closeModals() {
+    document.querySelectorAll('.overlay').forEach(o => o.classList.remove('show'));
+  }
+
+  async function createUser(e) {
+    e.preventDefault();
+    const nome = el('nuNome').value.trim();
+    const cognome = el('nuCognome').value.trim();
+    const nascita = el('nuNascita').value;
+    let valid = true;
+    if (!nome) { el('errNome').hidden = false; valid = false; } else { el('errNome').hidden = true; }
+    if (!cognome) { el('errCognome').hidden = false; valid = false; } else { el('errCognome').hidden = true; }
+    if (!newUserSesso) { el('errSesso').hidden = false; valid = false; } else { el('errSesso').hidden = true; }
+    if (!nascita || parseISO(nascita) > new Date()) { el('errNascita').hidden = false; valid = false; } else { el('errNascita').hidden = true; }
+    if (!valid) return;
+    const user = { id: uid(), nome, cognome, sesso: newUserSesso, nascita, misure: [] };
+    users.push(user);
+    await addUserToFirestore(user);
+    closeModals();
+    el('newUserForm').reset();
+    newUserSesso = null;
+    toast(`Utente ${nome} ${cognome} creato con successo`);
+    go('user', user.id);
+  }
+
+  function openEditUser() {
+    const u = currentUser();
+    if (!u) return;
+    el('edNome').value = u.nome;
+    el('edCognome').value = u.cognome;
+    el('edNascita').value = u.nascita;
+    editUserSesso = u.sesso || null;
+    updateEditSessoButtons();
+    el('ovlEdit').classList.add('show');
+  }
+
+  function updateEditSessoButtons() {
+    el('edBtnMale').classList.toggle('btn-primary', editUserSesso === 'M');
+    el('edBtnMale').classList.toggle('btn-ghost', editUserSesso !== 'M');
+    el('edBtnFemale').classList.toggle('btn-primary', editUserSesso === 'F');
+    el('edBtnFemale').classList.toggle('btn-ghost', editUserSesso !== 'F');
+  }
+
+  async function saveEditUser(e) {
+    e.preventDefault();
+    const u = currentUser();
+    if (!u) return;
+    const nome = el('edNome').value.trim();
+    const cognome = el('edCognome').value.trim();
+    const nascita = el('edNascita').value;
+    if (!nome || !cognome || !nascita || !editUserSesso) { toast('Compila tutti i campi', 'err'); return; }
+    u.nome = nome;
+    u.cognome = cognome;
+    u.sesso = editUserSesso;
+    u.nascita = nascita;
+    await saveUserToFirestore(u);
+    closeModals();
+    renderUser();
+    toast('Anagrafica aggiornata con successo');
+  }
+
+  // ---------- Misurazioni ----------
+  async function submitMeasurement(e) {
+    e.preventDefault();
+    const u = currentUser();
+    if (!u) return;
+    const data = el('mData').value;
+    if (!data) { toast('Inserisci una data valida', 'err'); return; }
+    const fields = ['peso','altezza','fm','ffm','viscerale','bmi','tdee','etaBio','idratazione','fmTronco'];
+    let hasValue = false;
+    const vals = {};
+    fields.forEach(f => {
+      const v = el('f_' + f).value;
+      if (v !== '' && !isNaN(Number(v))) { vals[f] = Number(v); hasValue = true; }
+    });
+    const note = el('f_note').value.trim();
+    if (!hasValue) { toast('Inserisci almeno un valore numerico', 'warn'); return; }
+    if (!u.misure) u.misure = [];
+    if (pendingEditId) {
+      const m = u.misure.find(x => x.id === pendingEditId);
+      if (m) {
+        m.data = data;
+        fields.forEach(f => { if (vals[f] !== undefined) m[f] = vals[f]; else delete m[f]; });
+        m.note = note || undefined;
+        justAdded = m.id;
+        pendingEditId = null;
+        await saveUserToFirestore(u);
+        el('measForm').reset();
+        el('mData').value = todayISO();
+        updateAgeField();
+        renderUser();
+        toast('Misurazione aggiornata con successo');
+        return;
+      }
+      pendingEditId = null;
+    }
+    const m = { id: uid(), data };
+    Object.assign(m, vals);
+    if (note) m.note = note;
+    u.misure.push(m);
+    justAdded = m.id;
+    await saveUserToFirestore(u);
+    el('measForm').reset();
+    el('mData').value = todayISO();
+    updateAgeField();
+    renderUser();
+    toast('Misurazione registrata con successo');
+  }
+
+  function updateAgeField() {
+    const u = currentUser();
+    const data = el('mData').value;
+    if (!u || !data) { el('mAnni').value = '—'; return; }
+    const anni = ageAt(u.nascita, data);
+    el('mAnni').value = anni !== null ? anni + ' anni' : '—';
+  }
+
+  // ---------- Grafici ----------
+  function renderCharts() {
+    const u = currentUser();
+    if (!u) { go('home'); return; }
+    renderChips();
+    renderChartGrid();
+  }
+
+  function renderChips() {
+    const list = el('chipList');
+    list.innerHTML = Object.keys(PARAMS).map(key => {
+      const p = PARAMS[key];
+      const on = prefs.charts.includes(key);
+      const off = !on && prefs.charts.length >= 4;
+      return '<button type="button" class="chip ' + (on ? 'on' : '') + ' ' + (off ? 'off' : '') + '" data-key="' + key + '">' +
+        '<svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 7"/></svg>' +
+        p.label +
+      '</button>';
+    }).join('');
+    el('chipCount').textContent = prefs.charts.length + '/4';
+    list.querySelectorAll('.chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const key = chip.dataset.key;
+        const idx = prefs.charts.indexOf(key);
+        if (idx >= 0) {
+          prefs.charts.splice(idx, 1);
+        } else if (prefs.charts.length < 4) {
+          prefs.charts.push(key);
+        } else {
+          chip.classList.add('shake');
+          setTimeout(() => chip.classList.remove('shake'), 400);
+          return;
+        }
+        savePrefs();
+        renderChips();
+        renderChartGrid();
+      });
+    });
+  }
+
+  function renderChartGrid() {
+    const u = currentUser();
+    if (!u) return;
+    const grid = el('chartsGrid');
     const misure = (u.misure || []).slice().sort((a, b) => a.data.localeCompare(b.data));
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write('<html><head><title>PHOENIX FITNESS - ' + esc(u.nome) + ' ' + esc(u.cognome) + '</title><style>body{font-family:sans-serif;padding:10px;font-size:11px}h1{font-size:16px;margin:5px 0;color:#18181d}h2{font-size:13px;margin:8px 0}table{width:100%;border-collapse:collapse;margin:5px 0;font-size:11px}th,td{border:1px solid #ddd;padding:4px;text-align:left;white-space:nowrap}th{background:#f5f5f5}</style></head><body>');
-    printWindow.document.write('<h1>PHOENIX FITNESS</h1>');
-    printWindow.document.write('<h2>Report: ' + esc(u.nome) + ' ' + esc(u.cognome) + '</h2>');
-    printWindow.document.write('<table><thead><tr><th>Data</th><th>Peso</th><th>Altezza</th><th>FM%</th><th>FFM</th><th>Visc.</th><th>BMI</th><th>TDEE</th><th>Età bio</th><th>Idrat.</th><th>FM tronco</th><th>Note</th></tr></thead><tbody>');
-    misure.forEach(m => {
-      printWindow.document.write('<tr><td>' + fmtDate(m.data) + '</td><td>' + (m.peso || '—') + '</td><td>' + (m.altezza || '—') + '</td><td>' + (m.fm || '—') + '</td><td>' + (m.ffm || '—') + '</td><td>' + (m.viscerale || '—') + '</td><td>' + (m.bmi || '—') + '</td><td>' + (m.tdee || '—') + '</td><td>' + (m.etaBio || '—') + '</td><td>' + (m.idratazione || '—') + '</td><td>' + (m.fmTronco || '—') + '</td><td>' + (m.note || '') + '</td></tr>');
+    if (!misure.length) {
+      grid.innerHTML = '<div class="panel"><p style="color:var(--muted);text-align:center;padding:20px;">Nessuna misurazione disponibile per i grafici.</p></div>';
+      return;
+    }
+    const solo = prefs.charts.length === 1;
+    grid.className = solo ? 'solo' : '';
+    grid.innerHTML = prefs.charts.map((key, i) => {
+      const p = PARAMS[key];
+      const mode = prefs.modes[key] || 'line';
+      const zoom = prefs.zoom ? prefs.zoom[key] || 1 : 1;
+      const showAvg = prefs.avg && prefs.avg[key] ? true : false;
+      const values = misure.map(m => m[key]).filter(v => v !== undefined && v !== null);
+      const last = values.length ? values[values.length - 1] : null;
+      const prev = values.length > 1 ? values[values.length - 2] : null;
+      const delta = last !== null && prev !== null ? last - prev : null;
+      return '<div class="chart-card" style="animation-delay:' + (i * 0.06) + 's">' +
+        '<div class="ch-head">' +
+          '<span class="ch-title">' + p.label + '<span>' + p.unit + '</span></span>' +
+          '<span class="ch-meta">' +
+            '<b>' + (last !== null ? fmtNum(last, p.dec) : '—') + '</b>' +
+            (delta !== null ? '<span class="delta">' + (delta > 0 ? '+' : '') + fmtNum(delta, p.dec) + '</span>' : '') +
+          '</span>' +
+          '<span class="ch-tools">' +
+            '<button class="avg-btn ' + (showAvg ? 'on' : '') + '" data-avg="' + key + '" title="Mostra media mobile">Media</button>' +
+            '<button class="mode-btn ' + (mode === 'line' ? 'on' : '') + '" data-mode="line" data-key="' + key + '" title="Grafico a linee">' + ICON.line + '</button>' +
+            '<button class="mode-btn ' + (mode === 'bar' ? 'on' : '') + '" data-mode="bar" data-key="' + key + '" title="Grafico a barre">' + ICON.bar + '</button>' +
+            '<button class="zoom-btn" data-zoom="in" data-key="' + key + '" title="Zoom in">' + ICON.zoomIn + '</button>' +
+            '<button class="zoom-btn" data-zoom="out" data-key="' + key + '" title="Zoom out">' + ICON.zoomOut + '</button>' +
+          '</span>' +
+        '</div>' +
+        '<div class="ch-scroll" id="scroll-' + key + '">' +
+          '<div class="ch-canvas-wrap" id="wrap-' + key + '">' +
+            '<div class="ch-body"><canvas id="chart-' + key + '"></canvas></div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+    grid.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.key;
+        prefs.modes[key] = btn.dataset.mode;
+        savePrefs();
+        renderChartGrid();
+      });
     });
-    printWindow.document.write('</tbody></table></body></html>');
-    printWindow.document.close();
-    printWindow.print();
-  });
-  // Delete user
-  el('btnDelUser').addEventListener('click', openDeleteUser);
-  el('btnDelConfirm').addEventListener('click', confirmDeleteUser);
-  // Close modals
-  document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeModals));
-  document.querySelectorAll('.overlay').forEach(o => o.addEventListener('click', e => { if (e.target === o) closeModals(); }));
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModals(); });
-  // Measurement form
-  el('measForm').addEventListener('submit', submitMeasurement);
-  el('mData').addEventListener('change', updateAgeField);
-  // Sort
-  document.querySelectorAll('.th-sort').forEach(th => {
-    th.addEventListener('click', () => {
-      const col = th.dataset.col;
-      if (sortCol === col) { sortDesc = !sortDesc; }
-      else { sortCol = col; sortDesc = col === 'data'; }
-      document.querySelectorAll('.th-sort .arr').forEach(a => a.textContent = '');
-      th.querySelector('.arr').textContent = sortDesc ? '↓' : '↑';
-      renderHistory();
+    grid.querySelectorAll('.zoom-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.key;
+        const dir = btn.dataset.zoom;
+        if (!prefs.zoom) prefs.zoom = {};
+        const cur = prefs.zoom[key] || 1;
+        const next = dir === 'in' ? Math.min(cur * 1.5, 10) : Math.max(cur / 1.5, 1);
+        prefs.zoom[key] = next;
+        savePrefs();
+        renderChartGrid();
+      });
     });
-  });
-  // Dice
-  el('btnDice').addEventListener('click', fillRandomData);
-  // Resize charts
-  let resizeTimeout;
-  window.addEventListener('resize', () => {
-    clearTimeout(resizeTimeout);
-    resizeTimeout = setTimeout(() => { if (state.screen === 'charts') renderChartGrid(); }, 200);
-  });
-}
+    grid.querySelectorAll('.avg-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.avg;
+        if (!prefs.avg) prefs.avg = {};
+        prefs.avg[key] = !prefs.avg[key];
+        savePrefs();
+        renderChartGrid();
+      });
+    });
+    prefs.charts.forEach(key => drawChart(key, misure));
+  }
 
-document.addEventListener('DOMContentLoaded', init);
+  function drawChart(key, misure) {
+    const canvas = el('chart-' + key);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const wrap = el('wrap-' + key);
+    const scroll = el('scroll-' + key);
+    const zoom = prefs.zoom && prefs.zoom[key] ? prefs.zoom[key] : 1;
+    const showAvg = prefs.avg && prefs.avg[key] ? true : false;
+    const baseW = scroll.clientWidth || 600;
+    const W = Math.max(baseW * zoom, baseW);
+    const H = 280;
+    wrap.style.width = W + 'px';
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.scale(dpr, dpr);
+    const p = PARAMS[key];
+    const mode = prefs.modes[key] || 'line';
+    const data = misure.map(m => ({ x: m.data, y: m[key] })).filter(d => d.y !== undefined && d.y !== null);
+    if (data.length < 2) {
+      ctx.fillStyle = '#7c7b88';
+      ctx.font = '14px ' + FONT;
+      ctx.textAlign = 'center';
+      ctx.fillText('Servono almeno 2 misurazioni', W / 2, H / 2);
+      return;
+    }
+    const padL = 50, padR = 20, padT = 20, padB = 40;
+    const chartW = W - padL - padR, chartH = H - padT - padB;
+    const minY = Math.min(...data.map(d => d.y));
+    const maxY = Math.max(...data.map(d => d.y));
+    const rangeY = maxY - minY || 1;
+    const yMin = minY - rangeY * 0.1;
+    const yMax = maxY + rangeY * 0.1;
+    const xMin = new Date(data[0].x).getTime();
+    const xMax = new Date(data[data.length - 1].x).getTime();
+    const rangeX = xMax - xMin || 1;
+    const xScale = x => padL + ((new Date(x).getTime() - xMin) / rangeX) * chartW;
+    const yScale = y => padT + chartH - ((y - yMin) / (yMax - yMin)) * chartH;
+    // Grid
+    ctx.strokeStyle = '#34343f';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const y = padT + (chartH / 4) * i;
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+    }
+    // Y labels
+    ctx.fillStyle = '#7c7b88';
+    ctx.font = '11px ' + FONT;
+    ctx.textAlign = 'right';
+    for (let i = 0; i <= 4; i++) {
+      const val = yMax - ((yMax - yMin) / 4) * i;
+      ctx.fillText(fmtNum(val, p.dec), padL - 8, padT + (chartH / 4) * i + 4);
+    }
+    // X labels
+    ctx.textAlign = 'center';
+    const step = Math.ceil(data.length / 6);
+    data.forEach((d, i) => {
+      if (i % step === 0 || i === data.length - 1) {
+        ctx.fillText(fmtShort(d.x), xScale(d.x), H - padB + 18);
+      }
+    });
+    // Data
+    const color = COLORS[prefs.charts.indexOf(key) % COLORS.length];
+    if (mode === 'bar') {
+      const barW = Math.min(30, chartW / data.length * 0.6);
+      data.forEach(d => {
+        const x = xScale(d.x);
+        const y = yScale(d.y);
+        ctx.fillStyle = color + '88';
+        ctx.fillRect(x - barW / 2, y, barW, padT + chartH - y);
+      });
+    } else {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2.5;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      data.forEach((d, i) => {
+        const x = xScale(d.x), y = yScale(d.y);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      // Area fill
+      ctx.lineTo(xScale(data[data.length - 1].x), padT + chartH);
+      ctx.lineTo(xScale(data[0].x), padT + chartH);
+      ctx.closePath();
+      ctx.fillStyle = color + '18';
+      ctx.fill();
+      // Points
+      data.forEach(d => {
+        ctx.beginPath();
+        ctx.arc(xScale(d.x), yScale(d.y), 4, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.strokeStyle = '#1e1e24';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      });
+    }
+    // Media mobile
+    if (showAvg && data.length >= 3) {
+      const avgData = [];
+      for (let i = 0; i < data.length; i++) {
+        const start = Math.max(0, i - 2);
+        const slice = data.slice(start, i + 1);
+        const avg = slice.reduce((s, d) => s + d.y, 0) / slice.length;
+        avgData.push({ x: data[i].x, y: avg });
+      }
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      avgData.forEach((d, i) => {
+        const x = xScale(d.x), y = yScale(d.y);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  // ---------- Elimina Utente ----------
+  function openDeleteUser() {
+    const u = currentUser();
+    if (!u) return;
+    el('delText').innerHTML = `Stai per eliminare <b>${esc(u.nome)} ${esc(u.cognome)}</b> e tutte le sue misurazioni. Questa azione è irreversibile.`;
+    el('ovlDel').classList.add('show');
+  }
+
+  async function confirmDeleteUser() {
+    const u = currentUser();
+    if (!u) return;
+    users = users.filter(x => x.id !== u.id);
+    await deleteUserFromFirestore(u.id);
+    closeModals();
+    toast('Atleta eliminato definitivamente', 'warn');
+    go('home');
+  }
+
+  // ---------- Event Listeners ----------
+  function init() {
+    el('mData').value = todayISO();
+    updateAgeField();
+    renderRecent();
+    renderHomeStats();
+    // Brand
+    el('brandBtn').addEventListener('click', () => go('home'));
+    el('brandBtn').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go('home'); } });
+    // Search
+    let searchTimeout;
+    el('searchInput').addEventListener('input', () => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => { selIdx = -1; renderHome(); }, 150);
+    });
+    el('searchInput').addEventListener('keydown', e => {
+      const items = el('searchResults').querySelectorAll('.sr-item');
+      if (e.key === 'ArrowDown') { e.preventDefault(); selIdx = Math.min(selIdx + 1, items.length - 1); items.forEach((it, i) => it.classList.toggle('sel', i === selIdx)); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); selIdx = Math.max(selIdx - 1, 0); items.forEach((it, i) => it.classList.toggle('sel', i === selIdx)); }
+      else if (e.key === 'Enter' && selIdx >= 0 && items[selIdx]) { items[selIdx].click(); }
+    });
+    el('searchClear').addEventListener('click', () => { el('searchInput').value = ''; renderHome(); el('searchInput').focus(); });
+    document.addEventListener('click', e => { if (!el('searchBox').contains(e.target)) { el('searchResults').classList.remove('show'); el('searchBox').classList.remove('open'); } });
+    // User select dropdown
+    el('userSelect').addEventListener('change', () => {
+      const id = el('userSelect').value;
+      if (id) { addToRecent(id); go('user', id); }
+    });
+    // New user
+    el('btnNewUser').addEventListener('click', openNewUser);
+    el('newUserForm').addEventListener('submit', createUser);
+    el('btnMale').addEventListener('click', () => { newUserSesso = 'M'; el('btnMale').classList.add('btn-primary'); el('btnMale').classList.remove('btn-ghost'); el('btnFemale').classList.add('btn-ghost'); el('btnFemale').classList.remove('btn-primary'); el('errSesso').hidden = true; });
+    el('btnFemale').addEventListener('click', () => { newUserSesso = 'F'; el('btnFemale').classList.add('btn-primary'); el('btnFemale').classList.remove('btn-ghost'); el('btnMale').classList.add('btn-ghost'); el('btnMale').classList.remove('btn-primary'); el('errSesso').hidden = true; });
+    // Edit user
+    el('btnEditUser').addEventListener('click', openEditUser);
+    el('editUserForm').addEventListener('submit', saveEditUser);
+    el('edBtnMale').addEventListener('click', () => { editUserSesso = 'M'; updateEditSessoButtons(); });
+    el('edBtnFemale').addEventListener('click', () => { editUserSesso = 'F'; updateEditSessoButtons(); });
+    // Back buttons
+    el('btnBackUser').addEventListener('click', () => go('user'));
+    el('btnBackUser2').addEventListener('click', () => go('user'));
+    el('btnBackUser3').addEventListener('click', () => go('user'));
+    // Charts
+    el('btnCharts').addEventListener('click', () => go('charts'));
+    el('btnGoHist').addEventListener('click', () => go('hist'));
+    el('btnGoMeas').addEventListener('click', () => go('meas'));
+    el('btnPrint').addEventListener('click', () => {
+      const u = currentUser();
+      if (!u) return;
+      const misure = (u.misure || []).slice().sort((a, b) => a.data.localeCompare(b.data));
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write('<html><head><title>PHOENIX FITNESS - ' + esc(u.nome) + ' ' + esc(u.cognome) + '</title><style>body{font-family:sans-serif;padding:10px;font-size:11px}h1{font-size:16px;margin:5px 0;color:#18181d}h2{font-size:13px;margin:8px 0}table{width:100%;border-collapse:collapse;margin:5px 0;font-size:11px}th,td{border:1px solid #ddd;padding:4px;text-align:left;white-space:nowrap}th{background:#f5f5f5}</style></head><body>');
+      printWindow.document.write('<h1>PHOENIX FITNESS</h1>');
+      printWindow.document.write('<h2>Report: ' + esc(u.nome) + ' ' + esc(u.cognome) + '</h2>');
+      printWindow.document.write('<table><thead><tr><th>Data</th><th>Peso</th><th>Altezza</th><th>FM%</th><th>FFM</th><th>Visc.</th><th>BMI</th><th>TDEE</th><th>Età bio</th><th>Idrat.</th><th>FM tronco</th><th>Note</th></tr></thead><tbody>');
+      misure.forEach(m => {
+        printWindow.document.write('<tr><td>' + fmtDate(m.data) + '</td><td>' + (m.peso || '—') + '</td><td>' + (m.altezza || '—') + '</td><td>' + (m.fm || '—') + '</td><td>' + (m.ffm || '—') + '</td><td>' + (m.viscerale || '—') + '</td><td>' + (m.bmi || '—') + '</td><td>' + (m.tdee || '—') + '</td><td>' + (m.etaBio || '—') + '</td><td>' + (m.idratazione || '—') + '</td><td>' + (m.fmTronco || '—') + '</td><td>' + (m.note || '') + '</td></tr>');
+      });
+      printWindow.document.write('</tbody></table></body></html>');
+      printWindow.document.close();
+      printWindow.print();
+    });
+    // Delete user
+    el('btnDelUser').addEventListener('click', openDeleteUser);
+    el('btnDelConfirm').addEventListener('click', confirmDeleteUser);
+    // Close modals
+    document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeModals));
+    document.querySelectorAll('.overlay').forEach(o => o.addEventListener('click', e => { if (e.target === o) closeModals(); }));
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModals(); });
+    // Measurement form
+    el('measForm').addEventListener('submit', submitMeasurement);
+    el('mData').addEventListener('change', updateAgeField);
+    // Sort
+    document.querySelectorAll('.th-sort').forEach(th => {
+      th.addEventListener('click', () => {
+        const col = th.dataset.col;
+        if (sortCol === col) { sortDesc = !sortDesc; }
+        else { sortCol = col; sortDesc = col === 'data'; }
+        document.querySelectorAll('.th-sort .arr').forEach(a => a.textContent = '');
+        th.querySelector('.arr').textContent = sortDesc ? '↓' : '↑';
+        renderHistory();
+      });
+    });
+    // Dice
+    el('btnDice').addEventListener('click', fillRandomData);
+    // Resize charts
+    let resizeTimeout;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => { if (state.screen === 'charts') renderChartGrid(); }, 200);
+    });
+  }
+
+  // ---------- Avvio ----------
+  loadPrefs();
+  init();
+  loadUsers();
 </script>
-
 
 </body>
 </html>
