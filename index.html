@@ -223,12 +223,28 @@ td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
 .toast.out{opacity:0;transform:translateX(14px);transition:.35s ease}
 @keyframes tIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
 
-/* ============ LOADING ============ */
+/* ============ LOADING & LOGIN ============ */
 #loadingOverlay{position:fixed;inset:0;z-index:300;background:var(--bg0);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;transition:opacity .4s ease}
 #loadingOverlay.hidden{opacity:0;pointer-events:none}
 .loading-spinner{width:50px;height:50px;border:3px solid var(--line2);border-top-color:var(--yellow);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .loading-text{font-family:var(--f-display);font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);font-size:.85rem}
+
+#loginOverlay{position:fixed;inset:0;z-index:250;background:var(--bg0);display:flex;align-items:center;justify-content:center;padding:20px;transition:opacity .4s ease}
+#loginOverlay.hidden{opacity:0;pointer-events:none}
+.login-box{background:var(--bg1);border:1px solid var(--line2);border-radius:16px;padding:32px;width:min(400px,100%);animation:mdIn .3s ease;text-align:center}
+.login-box h2{font-family:var(--f-display);font-weight:800;font-size:1.4rem;letter-spacing:.08em;margin-bottom:6px;color:var(--txt)}
+.login-box .l-sub{font-size:.85rem;color:var(--muted);margin-bottom:22px}
+.login-box .field{text-align:left;margin-bottom:14px}
+.login-box input{background:var(--bg0);border:1.5px solid var(--line2);border-radius:9px;padding:10px 14px;font-size:.95rem;outline:none;width:100%;color:var(--txt);transition:border-color .15s}
+.login-box input:focus{border-color:var(--yellow)}
+.login-box .ferr{font-size:.74rem;color:var(--red);margin-top:4px}
+.login-actions{display:flex;flex-direction:column;gap:10px;margin-top:20px}
+.login-actions .btn{justify-content:center}
+.login-skip{background:none;border:none;color:var(--faint);font-size:.8rem;cursor:pointer;margin-top:12px;text-decoration:underline}
+.login-skip:hover{color:var(--muted)}
+.login-mode{margin-top:14px;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.login-mode b{color:var(--yellow)}
 
 /* ============ RESPONSIVE ============ */
 @media(max-width:940px){
@@ -248,6 +264,32 @@ td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
   <div class="loading-text">Caricamento dati…</div>
 </div>
 
+<!-- ============ LOGIN OVERLAY ============ -->
+<div id="loginOverlay">
+  <div class="login-box">
+    <h2>PHOENIX FITNESS</h2>
+    <p class="l-sub">Inserisci le credenziali per accedere alla modalità online con dati sincronizzati tra dispositivi.</p>
+    <form id="loginForm" novalidate>
+      <div class="field">
+        <label for="loginUser">Utente</label>
+        <input type="text" id="loginUser" autocomplete="username" placeholder="Nome utente">
+        <p class="ferr" id="loginErrUser" hidden>Inserisci il nome utente.</p>
+      </div>
+      <div class="field">
+        <label for="loginPass">Password</label>
+        <input type="password" id="loginPass" autocomplete="current-password" placeholder="Password">
+        <p class="ferr" id="loginErrPass" hidden>Inserisci la password.</p>
+      </div>
+      <p class="ferr" id="loginErrCred" hidden>Credenziali non valide. Riprova.</p>
+      <div class="login-actions">
+        <button type="submit" class="btn btn-primary">Accedi</button>
+      </div>
+    </form>
+    <button class="login-skip" id="loginSkip">Continua offline (dati locali)</button>
+    <p class="login-mode" id="loginMode">Modalità: <b>Offline</b> — dati salvati su questo dispositivo</p>
+  </div>
+</div>
+
 <!-- ============ INTESTAZIONE FISSA ============ -->
 <header id="topbar">
   <div class="bar-inner">
@@ -258,6 +300,7 @@ td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
       </div>
     </div>
     <nav id="crumbs" aria-label="Percorso"></nav>
+    <span id="modeIndicator" style="font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);padding:4px 10px;border:1px solid var(--line2);border-radius:20px;margin-left:10px">Offline</span>
   </div>
 </header>
 
@@ -558,6 +601,11 @@ td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
   let state = { screen: 'home', userId: null };
   let sortDesc = true, pendingDel = null, pendingT = null, justAdded = null, selIdx = -1, pendingEditId = null, sortCol = 'data';
   let newUserSesso = null, editUserSesso = null;
+  let isOnline = false; // true se loggato con credenziali corrette
+
+  // Credenziali di accesso fisse
+  const AUTH_USER = 'Marco Spaccarotella';
+  const AUTH_PASS = 'Sky';
 
   // ---------- Utility ----------
   const el = id => document.getElementById(id);
@@ -624,66 +672,97 @@ td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
   }
   const savePrefs = () => { try { localStorage.setItem('phoenixFitPrefs', JSON.stringify(prefs)); } catch(e){} };
 
-  // ---------- Firebase: Caricamento ----------
+  // ---------- Caricamento dati (online/offline) ----------
   async function loadUsers() {
     const loading = el('loadingOverlay');
     try {
-      const querySnapshot = await getDocs(collection(firestore, "utenti"));
-      users = [];
-      querySnapshot.forEach((doc) => {
-        users.push({ id: doc.id, ...doc.data() });
-      });
-      console.log("Utenti caricati da Firestore:", users.length);
+      if (isOnline) {
+        const querySnapshot = await getDocs(collection(firestore, "utenti"));
+        users = [];
+        querySnapshot.forEach((doc) => {
+          users.push({ id: doc.id, ...doc.data() });
+        });
+        console.log("Utenti caricati da Firestore:", users.length);
+      } else {
+        const stored = localStorage.getItem('phoenixFitDB');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          users = parsed.users || [];
+        } else {
+          users = [];
+        }
+        console.log("Utenti caricati da localStorage:", users.length);
+      }
     } catch (error) {
       console.error("Errore nel caricamento utenti:", error);
-      toast("Errore nel caricamento dei dati da Firebase", "err");
+      toast("Errore nel caricamento dei dati", "err");
     } finally {
       loading.classList.add('hidden');
     }
   }
 
-  // ---------- Firebase: Salvataggio ----------
+  // ---------- Salvataggio dati (online/offline) ----------
   async function saveUserToFirestore(user) {
-    try {
-      const userRef = doc(firestore, "utenti", user.id);
-      await updateDoc(userRef, {
-        nome: user.nome,
-        cognome: user.cognome,
-        sesso: user.sesso,
-        nascita: user.nascita,
-        misure: user.misure || []
-      });
-    } catch (error) {
-      console.error("Errore nel salvataggio utente:", error);
-      toast("Errore nel salvataggio", "err");
-      throw error;
+    if (isOnline) {
+      try {
+        const userRef = doc(firestore, "utenti", user.id);
+        await updateDoc(userRef, {
+          nome: user.nome,
+          cognome: user.cognome,
+          sesso: user.sesso,
+          nascita: user.nascita,
+          misure: user.misure || []
+        });
+      } catch (error) {
+        console.error("Errore nel salvataggio utente:", error);
+        toast("Errore nel salvataggio", "err");
+        throw error;
+      }
+    } else {
+      saveLocalDB();
     }
   }
 
   async function addUserToFirestore(user) {
-    try {
-      const userRef = doc(firestore, "utenti", user.id);
-      await setDoc(userRef, {
-        nome: user.nome,
-        cognome: user.cognome,
-        sesso: user.sesso,
-        nascita: user.nascita,
-        misure: []
-      });
-    } catch (error) {
-      console.error("Errore nella creazione utente:", error);
-      toast("Errore nella creazione", "err");
-      throw error;
+    if (isOnline) {
+      try {
+        const userRef = doc(firestore, "utenti", user.id);
+        await setDoc(userRef, {
+          nome: user.nome,
+          cognome: user.cognome,
+          sesso: user.sesso,
+          nascita: user.nascita,
+          misure: []
+        });
+      } catch (error) {
+        console.error("Errore nella creazione utente:", error);
+        toast("Errore nella creazione", "err");
+        throw error;
+      }
+    } else {
+      saveLocalDB();
     }
   }
 
   async function deleteUserFromFirestore(userId) {
+    if (isOnline) {
+      try {
+        await deleteDoc(doc(firestore, "utenti", userId));
+      } catch (error) {
+        console.error("Errore nell'eliminazione utente:", error);
+        toast("Errore nell'eliminazione", "err");
+        throw error;
+      }
+    } else {
+      saveLocalDB();
+    }
+  }
+
+  function saveLocalDB() {
     try {
-      await deleteDoc(doc(firestore, "utenti", userId));
-    } catch (error) {
-      console.error("Errore nell'eliminazione utente:", error);
-      toast("Errore nell'eliminazione", "err");
-      throw error;
+      localStorage.setItem('phoenixFitDB', JSON.stringify({ users }));
+    } catch(e) {
+      console.error("Errore salvataggio locale:", e);
     }
   }
 
@@ -1433,11 +1512,45 @@ td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
     });
   }
 
+  // ---------- Login ----------
+  function handleLogin(e) {
+    e.preventDefault();
+    const username = el('loginUser').value.trim();
+    const password = el('loginPass').value;
+    let valid = true;
+    if (!username) { el('loginErrUser').hidden = false; valid = false; } else { el('loginErrUser').hidden = true; }
+    if (!password) { el('loginErrPass').hidden = false; valid = false; } else { el('loginErrPass').hidden = true; }
+    if (!valid) return;
+    if (username === AUTH_USER && password === AUTH_PASS) {
+      isOnline = true;
+      el('loginOverlay').classList.add('hidden');
+      el('loginMode').innerHTML = 'Modalità: <b>Online</b> — dati sincronizzati tra dispositivi';
+      el('modeIndicator').textContent = 'Online';
+      el('modeIndicator').style.color = 'var(--yellow)';
+      el('modeIndicator').style.borderColor = 'var(--yellow)';
+      toast('Accesso effettuato. Modalità online attiva.');
+      loadUsers().then(() => renderHome());
+    } else {
+      el('loginErrCred').hidden = false;
+    }
+  }
+
+  function handleSkipLogin() {
+    isOnline = false;
+    el('loginOverlay').classList.add('hidden');
+    el('loginMode').innerHTML = 'Modalità: <b>Offline</b> — dati salvati su questo dispositivo';
+    el('modeIndicator').textContent = 'Offline';
+    el('modeIndicator').style.color = 'var(--faint)';
+    el('modeIndicator').style.borderColor = 'var(--line2)';
+    toast('Modalità offline. I dati saranno salvati solo su questo dispositivo.', 'warn');
+    loadUsers().then(() => renderHome());
+  }
+
   // ---------- Avvio ----------
   loadPrefs();
   init();
-  await loadUsers();
-  renderHome();
+  el('loginForm').addEventListener('submit', handleLogin);
+  el('loginSkip').addEventListener('click', handleSkipLogin);
 </script>
 
 </body>
