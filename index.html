@@ -135,7 +135,7 @@ main{max-width:1240px;margin:0 auto;padding:32px 24px 70px;padding-top:104px}
 .uactions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 
 /* ============ TABELLA ============ */
-.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:11px}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:11px;-webkit-overflow-scrolling:touch}
 table{width:100%;min-width:1120px;border-collapse:collapse;font-variant-numeric:tabular-nums}
 thead th{position:sticky;top:0;background:var(--bg2);color:#a9a8b5;font-size:.66rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:11px 10px;border-bottom:2px solid #3d3d4a;white-space:nowrap;text-align:left;z-index:2}
 thead th.num{text-align:right}
@@ -148,7 +148,9 @@ tbody tr:hover{background:#2a2a35}
 td.num{text-align:right;font-family:var(--f-mono);font-size:.82rem}
 td.c-date{font-family:var(--f-mono);font-size:.82rem;color:var(--yellow)}
 .nd{color:#55545f}
-td.c-note{max-width:200px;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
+td.c-note{max-width:200px;overflow:hidden;text-overflow:ellipsis;color:var(--muted);cursor:pointer;position:relative}
+td.c-note:hover{color:var(--txt)}
+td.c-note.expanded{white-space:normal;word-break:break-word;max-width:300px}
 td.c-act{text-align:center;width:60px}
 .row-del{background:none;border:1px solid transparent;color:var(--faint);border-radius:7px;padding:5px 7px;cursor:pointer;display:inline-grid;place-items:center;transition:.15s;font-size:.72rem;font-weight:700}
 .row-del:hover{color:var(--red);border-color:var(--red)}
@@ -158,6 +160,10 @@ td.c-act{text-align:center;width:60px}
 tr.flash{animation:rowflash 1.8s ease}
 @keyframes rowflash{0%{background:rgba(255,215,0,.18)}100%{background:transparent}}
 td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
+
+/* Tooltip per note */
+.note-tooltip{position:fixed;z-index:1000;background:var(--bg2);border:1px solid var(--line2);border-radius:8px;padding:10px 14px;font-size:.85rem;color:var(--txt);max-width:320px;box-shadow:0 8px 24px rgba(0,0,0,.5);pointer-events:none;opacity:0;transition:opacity .15s}
+.note-tooltip.show{opacity:1}
 
 /* ============ SCHERMATA GRAFICI ============ */
 .chips-wrap{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
@@ -555,6 +561,36 @@ td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" data-close>Annulla</button>
         <button type="submit" class="btn btn-primary">Crea Scheda</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ MODALE: MODIFICA MISURAZIONE ============ -->
+<div class="overlay" id="ovlEditMeas">
+  <div class="modal" role="dialog" aria-modal="true" style="width:min(500px,100%)">
+    <h3>Modifica Misurazione</h3>
+    <p class="m-sub" id="measEditDate"></p>
+    <form id="editMeasForm" novalidate>
+      <div class="f-grid">
+        <div class="field"><label for="em_peso">Peso (kg)</label><input type="number" id="em_peso" step="0.1" min="0" inputmode="decimal"></div>
+        <div class="field"><label for="em_altezza">Altezza (cm)</label><input type="number" id="em_altezza" step="0.1" min="0" inputmode="decimal"></div>
+        <div class="field"><label for="em_fm">FM % (massa grassa)</label><input type="number" id="em_fm" step="0.1" min="0" inputmode="decimal"></div>
+        <div class="field"><label for="em_ffm">FFM (massa magra, kg)</label><input type="number" id="em_ffm" step="0.1" min="0" inputmode="decimal"></div>
+        <div class="field"><label for="em_viscerale">Grasso viscerale (kg)</label><input type="number" id="em_viscerale" step="0.1" min="0" inputmode="decimal"></div>
+        <div class="field"><label for="em_bmi">BMI (kg/m²)</label><input type="number" id="em_bmi" step="0.1" min="0" inputmode="decimal"></div>
+        <div class="field"><label for="em_tdee">TDEE (kcal)</label><input type="number" id="em_tdee" step="1" min="0" inputmode="numeric"></div>
+        <div class="field"><label for="em_etaBio">Età biologica (anni)</label><input type="number" id="em_etaBio" step="0.1" min="0" inputmode="decimal"></div>
+        <div class="field"><label for="em_idratazione">Idratazione (%)</label><input type="number" id="em_idratazione" step="0.1" min="0" inputmode="decimal"></div>
+        <div class="field"><label for="em_fmTronco">FM tronco (%)</label><input type="number" id="em_fmTronco" step="0.1" min="0" inputmode="decimal"></div>
+      </div>
+      <div class="field" style="margin-top:14px">
+        <label for="em_note">Note</label>
+        <input type="text" id="em_note" maxlength="220" placeholder="Annotazioni libere sulla misurazione…">
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" data-close>Annulla</button>
+        <button type="submit" class="btn btn-primary">Salva Modifiche</button>
       </div>
     </form>
   </div>
@@ -996,6 +1032,30 @@ td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
         editMeasurement(btn.dataset.edit);
       });
     });
+    // Note tooltip
+    tbody.querySelectorAll('.c-note').forEach(td => {
+      td.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const text = td.textContent.trim();
+        if (!text || text === '—') return;
+        document.querySelectorAll('.note-tooltip').forEach(t => t.remove());
+        const tooltip = document.createElement('div');
+        tooltip.className = 'note-tooltip';
+        tooltip.textContent = text;
+        document.body.appendChild(tooltip);
+        const rect = td.getBoundingClientRect();
+        tooltip.style.left = Math.min(rect.left, window.innerWidth - 340) + 'px';
+        tooltip.style.top = (rect.bottom + 8) + 'px';
+        tooltip.classList.add('show');
+        setTimeout(() => {
+          document.addEventListener('click', function handler() {
+            tooltip.classList.remove('show');
+            setTimeout(() => tooltip.remove(), 200);
+            document.removeEventListener('click', handler);
+          });
+        }, 100);
+      });
+    });
     if (justAdded) {
       setTimeout(() => { justAdded = null; }, 2000);
     }
@@ -1021,22 +1081,43 @@ td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
     if (!u) return;
     const m = (u.misure || []).find(x => x.id === id);
     if (!m) return;
-    el('mData').value = m.data;
-    el('f_peso').value = m.peso !== undefined && m.peso !== null ? m.peso : '';
-    el('f_altezza').value = m.altezza !== undefined && m.altezza !== null ? m.altezza : '';
-    el('f_fm').value = m.fm !== undefined && m.fm !== null ? m.fm : '';
-    el('f_ffm').value = m.ffm !== undefined && m.ffm !== null ? m.ffm : '';
-    el('f_viscerale').value = m.viscerale !== undefined && m.viscerale !== null ? m.viscerale : '';
-    el('f_bmi').value = m.bmi !== undefined && m.bmi !== null ? m.bmi : '';
-    el('f_tdee').value = m.tdee !== undefined && m.tdee !== null ? m.tdee : '';
-    el('f_etaBio').value = m.etaBio !== undefined && m.etaBio !== null ? m.etaBio : '';
-    el('f_idratazione').value = m.idratazione !== undefined && m.idratazione !== null ? m.idratazione : '';
-    el('f_fmTronco').value = m.fmTronco !== undefined && m.fmTronco !== null ? m.fmTronco : '';
-    el('f_note').value = m.note || '';
-    updateAgeField();
     pendingEditId = id;
-    toast('Misurazione caricata nel form. Modifica e registra per salvare.');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    el('measEditDate').textContent = 'Data: ' + fmtDate(m.data);
+    el('em_peso').value = m.peso !== undefined && m.peso !== null ? m.peso : '';
+    el('em_altezza').value = m.altezza !== undefined && m.altezza !== null ? m.altezza : '';
+    el('em_fm').value = m.fm !== undefined && m.fm !== null ? m.fm : '';
+    el('em_ffm').value = m.ffm !== undefined && m.ffm !== null ? m.ffm : '';
+    el('em_viscerale').value = m.viscerale !== undefined && m.viscerale !== null ? m.viscerale : '';
+    el('em_bmi').value = m.bmi !== undefined && m.bmi !== null ? m.bmi : '';
+    el('em_tdee').value = m.tdee !== undefined && m.tdee !== null ? m.tdee : '';
+    el('em_etaBio').value = m.etaBio !== undefined && m.etaBio !== null ? m.etaBio : '';
+    el('em_idratazione').value = m.idratazione !== undefined && m.idratazione !== null ? m.idratazione : '';
+    el('em_fmTronco').value = m.fmTronco !== undefined && m.fmTronco !== null ? m.fmTronco : '';
+    el('em_note').value = m.note || '';
+    el('ovlEditMeas').classList.add('show');
+  }
+
+  async function saveEditMeasurement(e) {
+    e.preventDefault();
+    const u = currentUser();
+    if (!u || !pendingEditId) return;
+    const m = (u.misure || []).find(x => x.id === pendingEditId);
+    if (!m) return;
+    const fields = ['peso','altezza','fm','ffm','viscerale','bmi','tdee','etaBio','idratazione','fmTronco'];
+    fields.forEach(f => {
+      const v = el('em_' + f).value;
+      if (v !== '' && !isNaN(Number(v))) {
+        m[f] = Number(v);
+      } else {
+        delete m[f];
+      }
+    });
+    m.note = el('em_note').value.trim() || undefined;
+    justAdded = m.id;
+    await saveUserToFirestore(u);
+    closeModals();
+    renderUser();
+    toast('Misurazione aggiornata con successo');
   }
 
   function fillRandomData() {
@@ -1617,6 +1698,8 @@ td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
     el('editUserForm').addEventListener('submit', saveEditUser);
     el('edBtnMale').addEventListener('click', () => { editUserSesso = 'M'; updateEditSessoButtons(); });
     el('edBtnFemale').addEventListener('click', () => { editUserSesso = 'F'; updateEditSessoButtons(); });
+    // Edit measurement
+    el('editMeasForm').addEventListener('submit', saveEditMeasurement);
     // Back buttons
     el('btnBackUser').addEventListener('click', () => go('user'));
     el('btnBackUser2').addEventListener('click', () => go('user'));
