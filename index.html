@@ -259,16 +259,32 @@ td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
   main{padding-top:118px}
   .uactions{width:100%}
   .brand p{display:none}
-  /* Tabella mobile: tutte le colonne visibili senza scroll */
-  .table-wrap{overflow:visible}
-  table{font-size:.7rem}
-  thead th{font-size:.55rem;padding:6px 4px;letter-spacing:.04em}
-  tbody td{font-size:.7rem;padding:5px 4px}
-  td.num{font-size:.68rem}
-  td.c-date{font-size:.68rem}
-  td.c-note{max-width:100px}
-  td.c-act{width:40px}
-  .row-del,.row-edit{padding:2px 4px;font-size:.6rem}
+}
+
+/* Mobile verticale (portrait) */
+@media(max-width:940px) and (orientation:portrait){
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{table-layout:auto;min-width:800px}
+  thead th{font-size:.6rem;padding:8px 6px;white-space:nowrap}
+  tbody td{font-size:.75rem;padding:7px 6px;white-space:nowrap}
+  td.num{font-size:.72rem}
+  td.c-date{font-size:.72rem;white-space:nowrap}
+  td.c-note{max-width:120px}
+  td.c-act{width:50px}
+  .row-del,.row-edit{padding:3px 5px;font-size:.65rem}
+}
+
+/* Mobile orizzontale (landscape) */
+@media(max-width:940px) and (orientation:landscape){
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{table-layout:auto;min-width:100%}
+  thead th{font-size:.6rem;padding:8px 6px;white-space:nowrap}
+  tbody td{font-size:.75rem;padding:7px 6px;white-space:nowrap}
+  td.num{font-size:.72rem}
+  td.c-date{font-size:.72rem;white-space:nowrap;min-width:80px}
+  td.c-note{max-width:150px}
+  td.c-act{width:60px}
+  .row-del,.row-edit{padding:3px 5px;font-size:.65rem}
 }
 </style>
 </head>
