@@ -816,37 +816,10 @@ function renderHistory() {
   }
 }
 
-async function renderMeas() {
-  try {
-    const u = currentUser();
-    if (!u) return;
-
-    const misurazioniSnapshot = await getDocs(
-      query(collection(db, "misurazioni"), where("userId", "==", u.id))
-    );
-    
-    const misurazioni = [];
-    misurazioniSnapshot.forEach((doc) => {
-      misurazioni.push({ id: doc.id, ...doc.data() });
-    });
-
-const tbody = el("measBody");
-if (misurazioni.length === 0) {
-  tbody.innerHTML = '<tr><td colspan="4" class="empty">Nessuna misurazione registrata</td></tr>';
-  return;
-}
-tbody.innerHTML = misurazioni.map(m => `
-  <tr>
-    <td class="c-date">${fmtDate(m.data)}</td>
-    <td class="num">${fmtNum(m.peso)} KG</td>
-    <td class="num">${fmtNum(m.f_bracciopDX)} CM</td>
-    <td class="num">${fmtNum(m.f_femoraleSX)} CM</td>
-  </tr>
-`).join('');
-    
-  } catch (error) {
-    console.error("Errore nel recupero delle misurazioni:", error);
-  }
+function renderMeas() {
+  const u = currentUser();
+  if (!u) return;
+  updateAgeField();
 }
 
 function deleteMeasurement(id) {
@@ -1293,7 +1266,6 @@ function confirmDeleteUser() {
 
 // ---------- Event Listeners ----------
 function init() {
-  getUtenti();
   el('mData').value = todayISO();
   updateAgeField();
   renderRecent();
@@ -1389,46 +1361,6 @@ function init() {
 document.addEventListener('DOMContentLoaded', init);
 </script>
 
-<!-- ============ FIREBASE ============ -->
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-  import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
-  // Your web app's Firebase configuration
-  const firebaseConfig = {
-    apiKey: "AIzaSyDfE4-Ja0z-8bH0TUTvhrT94bxwNzObLKU",
-    authDomain: "misurazioni-tanita.firebaseapp.com",
-    projectId: "misurazioni-tanita",
-    storageBucket: "misurazioni-tanita.firebasestorage.app",
-    messagingSenderId: "746760842339",
-    appId: "1:746760842339:web:e5ef72ac72d087245e9c56"
-  };
-
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-
-  // Initialize Firestore
-  const db = getFirestore(app);
-
-    // Recupera tutti i documenti dalla collezione "utenti"
-  async function getUtenti() {
-    try {
-      const querySnapshot = await getDocs(collection(db, "utenti"));
-      const utenti = [];
-      querySnapshot.forEach((doc) => {
-        utenti.push({ id: doc.id, ...doc.data() });
-      });
-      console.log("Utenti recuperati:", utenti);
-      return utenti;
-    } catch (error) {
-      console.error("Errore nel recupero degli utenti:", error);
-      throw error;
-    }
-  }
-  
-
-  // Esegue il recupero all'avvio
-  getUtenti();
-</script>
 </body>
 </html>
