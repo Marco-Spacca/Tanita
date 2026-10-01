@@ -1291,22 +1291,6 @@ function confirmDeleteUser() {
   go('home');
 }
 
-  // Recupera tutti i documenti dalla collezione "utenti"
-  async function getUtenti() {
-    try {
-      const querySnapshot = await getDocs(collection(db, "utenti"));
-      const utenti = [];
-      querySnapshot.forEach((doc) => {
-        utenti.push({ id: doc.id, ...doc.data() });
-      });
-      console.log("Utenti recuperati:", utenti);
-      return utenti;
-    } catch (error) {
-      console.error("Errore nel recupero degli utenti:", error);
-      throw error;
-    }
-  }
-  
 // ---------- Event Listeners ----------
 function init() {
   getUtenti();
@@ -1426,6 +1410,22 @@ document.addEventListener('DOMContentLoaded', init);
   // Initialize Firestore
   const db = getFirestore(app);
 
+    // Recupera tutti i documenti dalla collezione "utenti"
+  async function getUtenti() {
+    try {
+      const querySnapshot = await getDocs(collection(db, "utenti"));
+      const utenti = [];
+      querySnapshot.forEach((doc) => {
+        utenti.push({ id: doc.id, ...doc.data() });
+      });
+      console.log("Utenti recuperati:", utenti);
+      return utenti;
+    } catch (error) {
+      console.error("Errore nel recupero degli utenti:", error);
+      throw error;
+    }
+  }
+  
 
   // Esegue il recupero all'avvio
   getUtenti();
