@@ -563,6 +563,21 @@ td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
   const el = id => document.getElementById(id);
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const uid = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'id-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+  const PARAMS = {
+    peso:       { label:'Peso',             unit:'kg',    dec:1 },
+    altezza:    { label:'Altezza',          unit:'cm',    dec:1 },
+    fm:         { label:'FM',               unit:'%',     dec:1 },
+    ffm:        { label:'FFM',              unit:'kg',    dec:1 },
+    viscerale:  { label:'Grasso Viscerale', unit:'kg',    dec:1 },
+    bmi:        { label:'BMI',              unit:'kg/m²', dec:1 },
+    tdee:       { label:'TDEE',             unit:'kcal',  dec:0 },
+    etaBio:     { label:'Età Biologica',    unit:'anni',  dec:0 },
+    idratazione:{ label:'Idratazione',      unit:'%',     dec:1 },
+    fmTronco:   { label:'FM Tronco',        unit:'%',     dec:1 },
+  };
+  const COLORS = ['#ffd700', '#ff8c00', '#ff4500', '#f2ead6'];
+  const FONT = '"Segoe UI","Trebuchet MS",sans-serif';
+
   const pad2 = n => String(n).padStart(2, '0');
   const parseISO = s => { if (!s) return null; const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
 
