@@ -675,6 +675,7 @@ td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
   // ---------- Caricamento dati (online/offline) ----------
   async function loadUsers() {
     const loading = el('loadingOverlay');
+    loading.classList.remove('hidden');
     try {
       if (isOnline) {
         const querySnapshot = await getDocs(collection(firestore, "utenti"));
@@ -1551,6 +1552,8 @@ td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
   init();
   el('loginForm').addEventListener('submit', handleLogin);
   el('loginSkip').addEventListener('click', handleSkipLogin);
+  // Nasconde il loading overlay all'inizio, mostra solo il login
+  el('loadingOverlay').classList.add('hidden');
 </script>
 
 </body>
