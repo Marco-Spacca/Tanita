@@ -135,27 +135,27 @@ main{max-width:1240px;margin:0 auto;padding:32px 24px 70px;padding-top:104px}
 .uactions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 
 /* ============ TABELLA ============ */
-.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:11px;-webkit-overflow-scrolling:touch}
-table{width:100%;min-width:1120px;border-collapse:collapse;font-variant-numeric:tabular-nums}
-thead th{position:sticky;top:0;background:var(--bg2);color:#a9a8b5;font-size:.66rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:11px 10px;border-bottom:2px solid #3d3d4a;white-space:nowrap;text-align:left;z-index:2}
+.table-wrap{overflow:visible;border:1px solid var(--line);border-radius:11px;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;table-layout:fixed}
+thead th{background:var(--bg2);color:#a9a8b5;font-size:.6rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:8px 6px;border-bottom:2px solid #3d3d4a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left;z-index:2}
 thead th.num{text-align:right}
 th.th-sort{cursor:pointer;user-select:none}
 th.th-sort:hover{color:var(--yellow)}
-th.th-sort .arr{color:var(--orange);font-size:.72rem}
-tbody td{padding:9px 10px;border-bottom:1px solid #2d2d38;font-size:.87rem;white-space:nowrap}
+th.th-sort .arr{color:var(--orange);font-size:.65rem}
+tbody td{padding:7px 6px;border-bottom:1px solid #2d2d38;font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 tbody tr:last-child td{border-bottom:none}
 tbody tr:hover{background:#2a2a35}
-td.num{text-align:right;font-family:var(--f-mono);font-size:.82rem}
-td.c-date{font-family:var(--f-mono);font-size:.82rem;color:var(--yellow)}
+td.num{text-align:right;font-family:var(--f-mono);font-size:.75rem}
+td.c-date{font-family:var(--f-mono);font-size:.75rem;color:var(--yellow)}
 .nd{color:#55545f}
-td.c-note{max-width:200px;overflow:hidden;text-overflow:ellipsis;color:var(--muted);cursor:pointer;position:relative}
+td.c-note{max-width:150px;overflow:hidden;text-overflow:ellipsis;color:var(--muted);cursor:pointer;position:relative}
 td.c-note:hover{color:var(--txt)}
-td.c-note.expanded{white-space:normal;word-break:break-word;max-width:300px}
-td.c-act{text-align:center;width:60px}
-.row-del{background:none;border:1px solid transparent;color:var(--faint);border-radius:7px;padding:5px 7px;cursor:pointer;display:inline-grid;place-items:center;transition:.15s;font-size:.72rem;font-weight:700}
+td.c-note.expanded{white-space:normal;word-break:break-word;max-width:200px}
+td.c-act{text-align:center;width:50px}
+.row-del{background:none;border:1px solid transparent;color:var(--faint);border-radius:5px;padding:3px 5px;cursor:pointer;display:inline-grid;place-items:center;transition:.15s;font-size:.65rem;font-weight:700}
 .row-del:hover{color:var(--red);border-color:var(--red)}
 .row-del.confirm{background:var(--red);color:#fff;border-color:var(--red)}
-.row-edit{background:none;border:1px solid transparent;color:var(--faint);border-radius:7px;padding:5px 7px;cursor:pointer;display:inline-grid;place-items:center;transition:.15s}
+.row-edit{background:none;border:1px solid transparent;color:var(--faint);border-radius:5px;padding:3px 5px;cursor:pointer;display:inline-grid;place-items:center;transition:.15s}
 .row-edit:hover{color:var(--yellow);border-color:var(--yellow)}
 tr.flash{animation:rowflash 1.8s ease}
 @keyframes rowflash{0%{background:rgba(255,215,0,.18)}100%{background:transparent}}
@@ -259,6 +259,16 @@ td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
   main{padding-top:118px}
   .uactions{width:100%}
   .brand p{display:none}
+  /* Tabella mobile: tutte le colonne visibili senza scroll */
+  .table-wrap{overflow:visible}
+  table{font-size:.7rem}
+  thead th{font-size:.55rem;padding:6px 4px;letter-spacing:.04em}
+  tbody td{font-size:.7rem;padding:5px 4px}
+  td.num{font-size:.68rem}
+  td.c-date{font-size:.68rem}
+  td.c-note{max-width:100px}
+  td.c-act{width:40px}
+  .row-del,.row-edit{padding:2px 4px;font-size:.6rem}
 }
 </style>
 </head>
