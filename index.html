@@ -165,6 +165,7 @@ td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
 /* Tooltip per note e grafici */
 .note-tooltip{position:fixed;z-index:1000;background:var(--bg2);border:1px solid var(--line2);border-radius:8px;padding:10px 14px;font-size:.85rem;color:var(--txt);max-width:320px;box-shadow:0 8px 24px rgba(0,0,0,.5);pointer-events:none;opacity:0;transition:opacity .15s}
 .note-tooltip.show{opacity:1}
+.chart-tooltip{white-space:nowrap;transition:opacity .12s}
 
 /* ============ SCHERMATA GRAFICI ============ */
 .chips-wrap{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
@@ -1665,60 +1666,72 @@ td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
       ctx.setLineDash([]);
     }
 
-    // Tooltip interattivo
-    const showTooltip = (point, clientX, clientY) => {
-      document.querySelectorAll('.chart-tooltip').forEach(t => t.remove());
-      const tooltip = document.createElement('div');
-      tooltip.className = 'note-tooltip chart-tooltip';
-      tooltip.innerHTML = '<b>' + fmtDate(point.d.x) + '</b><br>' + p.label + ': <b>' + fmtNum(point.d.y, p.dec) + '</b> ' + p.unit;
-      document.body.appendChild(tooltip);
+    // Tooltip ancorato al puntatore / all'ultimo tap
+    const canvasPoint = (clientX, clientY) => {
       const rect = canvas.getBoundingClientRect();
-      let left = clientX - rect.left + 12;
-      let top = clientY - rect.top - 10;
-      if (left + 200 > rect.width) left = clientX - rect.left - 210;
-      if (top < 0) top = 10;
-      tooltip.style.left = left + 'px';
-      tooltip.style.top = top + 'px';
-      tooltip.classList.add('show');
+      const sx = rect.width ? W / rect.width : 1;
+      const sy = rect.height ? H / rect.height : 1;
+      return { x: (clientX - rect.left) * sx, y: (clientY - rect.top) * sy };
     };
 
-    const hideTooltip = () => {
-      document.querySelectorAll('.chart-tooltip').forEach(t => {
-        t.classList.remove('show');
-        setTimeout(() => t.remove(), 200);
-      });
-    };
-
-    // Mouse events (desktop)
-    canvas.onmousemove = (e) => {
-      const rect = canvas.getBoundingClientRect();
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
+    const nearestPoint = (clientX, clientY, maxDist) => {
+      const { x: mx, y: my } = canvasPoint(clientX, clientY);
       let closest = null;
-      let minDist = 20;
+      let minDist = maxDist;
       points.forEach(pt => {
-        const dist = Math.sqrt((mx - pt.x) ** 2 + (my - pt.y) ** 2);
+        const dist = Math.hypot(mx - pt.x, my - pt.y);
         if (dist < minDist) { minDist = dist; closest = pt; }
       });
-      if (closest) showTooltip(closest, e.clientX, e.clientY);
+      return closest;
+    };
+
+    const placeTooltip = (tooltip, clientX, clientY, gap) => {
+      const tw = tooltip.offsetWidth;
+      const th = tooltip.offsetHeight;
+      let left = clientX - tw / 2;
+      let top = clientY - th - gap;
+      if (top < 8) top = clientY + gap;
+      left = Math.max(8, Math.min(left, window.innerWidth - tw - 8));
+      tooltip.style.left = left + 'px';
+      tooltip.style.top = top + 'px';
+    };
+
+    const showTooltip = (point, clientX, clientY, fromTouch) => {
+      let tooltip = document.querySelector('.chart-tooltip');
+      if (!tooltip) {
+        tooltip = document.createElement('div');
+        tooltip.className = 'note-tooltip chart-tooltip';
+        document.body.appendChild(tooltip);
+      }
+      clearTimeout(hideTipTimer);
+      tooltip.innerHTML = '<b>' + fmtDate(point.d.x) + '</b><br>' + p.label + ': <b>' + fmtNum(point.d.y, p.dec) + '</b> ' + p.unit;
+      tooltip.classList.add('show');
+      placeTooltip(tooltip, clientX, clientY, fromTouch ? 28 : 14);
+    };
+
+    let hideTipTimer = null;
+    const hideTooltip = () => {
+      document.querySelectorAll('.chart-tooltip').forEach(t => t.classList.remove('show'));
+      clearTimeout(hideTipTimer);
+      hideTipTimer = setTimeout(() => {
+        document.querySelectorAll('.chart-tooltip:not(.show)').forEach(t => t.remove());
+      }, 200);
+    };
+
+    // Mouse events (desktop): testo sopra il cursore, vicino ai vertici
+    canvas.onmousemove = (e) => {
+      const closest = nearestPoint(e.clientX, e.clientY, 20);
+      if (closest) showTooltip(closest, e.clientX, e.clientY, false);
       else hideTooltip();
     };
     canvas.onmouseleave = hideTooltip;
 
-    // Touch events (mobile)
+    // Touch (mobile): testo sopra l'ultimo tap
     canvas.ontouchend = (e) => {
       e.preventDefault();
       const touch = e.changedTouches[0];
-      const rect = canvas.getBoundingClientRect();
-      const mx = touch.clientX - rect.left;
-      const my = touch.clientY - rect.top;
-      let closest = null;
-      let minDist = 30;
-      points.forEach(pt => {
-        const dist = Math.sqrt((mx - pt.x) ** 2 + (my - pt.y) ** 2);
-        if (dist < minDist) { minDist = dist; closest = pt; }
-      });
-      if (closest) showTooltip(closest, touch.clientX, touch.clientY);
+      const closest = nearestPoint(touch.clientX, touch.clientY, 36);
+      if (closest) showTooltip(closest, touch.clientX, touch.clientY, true);
       else hideTooltip();
     };
 
