@@ -324,16 +324,14 @@ td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
     <div id="searchResults" role="listbox"></div>
   </div>
 
-  <div class="home-actions">
-    <select id="userSelect" class="user-select" style="background:var(--bg1);border:1.5px solid var(--line2);border-radius:999px;padding:12px 20px;font-size:.95rem;color:var(--txt);cursor:pointer;min-width:280px">
-      <option value="">Seleziona un utente...</option>
-    </select>
-  </div>
-
-  <div class="home-actions">
+  <div class="home-actions" style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">
     <button class="btn btn-primary" id="btnNewUser">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
       Nuovo Utente
+    </button>
+    <button class="btn" id="btnUserList" style="background:var(--orange);color:#18181d;border-color:var(--orange)">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      Lista Utenti
     </button>
   </div>
 
@@ -493,6 +491,37 @@ td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
 </section>
 
 </main>
+
+<!-- ============ MODALE: LISTA UTENTI ============ -->
+<div class="overlay" id="ovlUserList">
+  <div class="modal" role="dialog" aria-modal="true" style="width:min(600px,100%);max-height:80vh;display:flex;flex-direction:column">
+    <h3>Lista Utenti</h3>
+    <p class="m-sub">Seleziona un utente per aprire la sua scheda.</p>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+      <label for="sortOrder" style="font-size:.78rem;color:var(--muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase">Ordina per:</label>
+      <select id="sortOrder" style="background:var(--bg0);border:1.5px solid var(--line2);border-radius:8px;padding:8px 12px;font-size:.88rem;color:var(--txt);cursor:pointer">
+        <option value="cognome">Cognome</option>
+        <option value="nome">Nome</option>
+        <option value="eta">Età</option>
+      </select>
+    </div>
+    <div id="userListContainer" style="overflow-y:auto;flex:1;min-height:200px"></div>
+    <div class="modal-actions" style="flex-wrap:wrap;justify-content:space-between">
+      <div style="display:flex;gap:10px">
+        <button type="button" class="btn btn-ghost" id="btnExportData" style="font-size:.8rem;padding:8px 14px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Salva con nome
+        </button>
+        <button type="button" class="btn btn-ghost" id="btnImportData" style="font-size:.8rem;padding:8px 14px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+          Carica
+        </button>
+      </div>
+      <button type="button" class="btn btn-ghost" data-close>Chiudi</button>
+    </div>
+    <input type="file" id="importFileInput" accept=".json,application/json" style="display:none">
+  </div>
+</div>
 
 <!-- ============ MODALE: NUOVO UTENTE ============ -->
 <div class="overlay" id="ovlNew">
@@ -816,9 +845,6 @@ td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
   function renderHome() {
     renderHomeStats();
     renderRecent();
-    const sel = el('userSelect');
-    const sorted = users.slice().sort((a, b) => a.cognome.localeCompare(b.cognome) || a.nome.localeCompare(b.nome));
-    sel.innerHTML = '<option value="">Seleziona un utente...</option>' + sorted.map(u => '<option value="' + u.id + '">' + esc(u.cognome) + ' ' + esc(u.nome) + '</option>').join('');
     const q = el('searchInput').value.trim().toLowerCase();
     const results = el('searchResults');
     if (q.length < 2) {
@@ -1041,6 +1067,132 @@ td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
     el('f_idratazione').value = idratazione;
     el('f_fmTronco').value = fmTronco;
     updateAgeField();
+  }
+
+  // ---------- Esporta/Importa Dati ----------
+  async function exportData() {
+    const data = {
+      version: '1.0',
+      exportDate: new Date().toISOString(),
+      users: users
+    };
+    const jsonString = JSON.stringify(data, null, 2);
+    const date = new Date().toISOString().slice(0, 10);
+    const suggestedName = `phoenix-fitness-backup-${date}.json`;
+
+    // Prova a usare File System Access API (Chrome, Edge, Opera)
+    if ('showSaveFilePicker' in window) {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName,
+          types: [{
+            description: 'Backup Phoenix Fitness',
+            accept: { 'application/json': ['.json'] },
+          }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(jsonString);
+        await writable.close();
+        toast('Backup salvato con successo');
+        return;
+      } catch (err) {
+        // L'utente ha annullato o l'API non è supportata
+        if (err.name === 'AbortError') return;
+        console.error('Errore File System Access API:', err);
+        // Fallback al metodo tradizionale
+      }
+    }
+
+    // Metodo tradizionale (download automatico)
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = suggestedName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast('Backup scaricato con successo');
+  }
+
+  function importData(file) {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const data = JSON.parse(e.target.result);
+        if (!data.users || !Array.isArray(data.users)) {
+          toast('File non valido: formato non riconosciuto', 'err');
+          return;
+        }
+        if (!confirm(`Il file contiene ${data.users.length} utenti. Vuoi sostituire tutti i dati attuali con quelli del backup?`)) {
+          return;
+        }
+        users = data.users;
+        if (isOnline) {
+          // Sincronizza tutti i dati importati su Firebase
+          for (const user of users) {
+            await saveUserToFirestore(user);
+          }
+        } else {
+          saveLocalDB();
+        }
+        renderUserList();
+        renderHome();
+        toast('Backup caricato con successo');
+      } catch (err) {
+        console.error('Errore importazione:', err);
+        toast('Errore nel caricamento del file', 'err');
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  // ---------- Lista Utenti ----------
+  function openUserList() {
+    el('ovlUserList').classList.add('show');
+    renderUserList();
+  }
+
+  function renderUserList() {
+    const container = el('userListContainer');
+    const sortBy = el('sortOrder').value;
+    const sorted = users.slice().sort((a, b) => {
+      if (sortBy === 'nome') {
+        return a.nome.localeCompare(b.nome) || a.cognome.localeCompare(b.cognome);
+      } else if (sortBy === 'eta') {
+        const ageA = a.nascita ? ageAt(a.nascita, todayISO()) : 0;
+        const ageB = b.nascita ? ageAt(b.nascita, todayISO()) : 0;
+        return ageA - ageB;
+      } else {
+        return a.cognome.localeCompare(b.cognome) || a.nome.localeCompare(b.nome);
+      }
+    });
+    if (!sorted.length) {
+      container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">Nessun utente registrato.</p>';
+      return;
+    }
+    container.innerHTML = sorted.map(u => {
+      const age = u.nascita ? ageAt(u.nascita, todayISO()) : null;
+      const lastMeas = u.misure && u.misure.length ? u.misure[u.misure.length - 1] : null;
+      const displayName = sortBy === 'cognome' ? esc(u.cognome) + ' ' + esc(u.nome) : esc(u.nome) + ' ' + esc(u.cognome);
+      return '<button class="sr-item" data-id="' + u.id + '" style="width:100%;text-align:left;border:none;border-bottom:1px solid #2a2a34;background:none;padding:12px 16px;cursor:pointer;color:var(--txt);display:flex;align-items:center;gap:12px">' +
+        '<span class="sr-av">' + esc(iniziali(u)) + '</span>' +
+        '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + displayName + '</span>' +
+        '<span style="color:var(--faint);font-size:.78rem">' + (age !== null ? age + ' anni' : '') + '</span>' +
+        '<span style="color:var(--faint);font-size:.78rem">' + (lastMeas ? fmtDate(lastMeas.data) : 'Nessuna misurazione') + '</span>' +
+      '</button>';
+    }).join('');
+    container.querySelectorAll('.sr-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const u = findUser(item.dataset.id);
+        if (u) {
+          closeModals();
+          addToRecent(u.id);
+          go('user', u.id);
+        }
+      });
+    });
   }
 
   // ---------- Nuovo Utente ----------
@@ -1443,10 +1595,17 @@ td.empty{text-align:center;padding:34px 10px;color:var(--faint);font-size:.9rem}
     });
     el('searchClear').addEventListener('click', () => { el('searchInput').value = ''; renderHome(); el('searchInput').focus(); });
     document.addEventListener('click', e => { if (!el('searchBox').contains(e.target)) { el('searchResults').classList.remove('show'); el('searchBox').classList.remove('open'); } });
-    // User select dropdown
-    el('userSelect').addEventListener('change', () => {
-      const id = el('userSelect').value;
-      if (id) { addToRecent(id); go('user', id); }
+    // User list popup
+    el('btnUserList').addEventListener('click', openUserList);
+    el('sortOrder').addEventListener('change', renderUserList);
+    // Export/Import
+    el('btnExportData').addEventListener('click', exportData);
+    el('btnImportData').addEventListener('click', () => el('importFileInput').click());
+    el('importFileInput').addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        importData(e.target.files[0]);
+        e.target.value = '';
+      }
     });
     // New user
     el('btnNewUser').addEventListener('click', openNewUser);
